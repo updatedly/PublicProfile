@@ -1,5 +1,6 @@
 'use client'
 
+
 import { useState, useEffect, useTransition, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -25,7 +26,35 @@ const sHead  = { fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: '
 // ─── Main component ──────────────────────────────────────────
 export default function AdminPage() {
   const supabase = createClient()
+  const [user, setUser] = useState<any>(null)
+  const [checking, setChecking] = useState(true)
   const [tab, setTab]             = useState<Tab>('hub')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user)
+      setChecking(false)
+    })
+  }, [])
+
+  if (checking) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontFamily: 'var(--mono)', color: 'var(--muted)' }}>
+      Checking access…
+    </div>
+  )
+
+  const adminId = process.env.NEXT_PUBLIC_ADMIN_USER_ID
+  if (!user || user.id !== adminId) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontFamily: 'var(--display)', fontSize: '1.5rem', fontWeight: 700, marginBottom: '.5rem' }}>Admin Access</div>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: '.65rem', color: 'var(--muted)', marginBottom: '1.5rem' }}>You must be signed in as admin to view this page.</div>
+        <button className="btn-primary" onClick={() => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } })}>
+          Sign in with Google
+        </button>
+      </div>
+    </div>
+  )
   const [policies, setPolicies]   = useState<Policy[]>([])
   const [entities, setEntities]   = useState<Entity[]>([])
   const [editPolicy, setEditPolicy] = useState<Policy | null>(null)
