@@ -1,126 +1,175 @@
-// ─── Supabase Database Types ────────────────────────────────
+// ─── Core Domain Types ────────────────────────────────────────────────────────
 
-export type OutcomeStatus = 'pending' | 'positive' | 'negative'
-export type PolicyStatus  = 'draft' | 'published' | 'archived'
-export type EntityType    = 'official' | 'institution'
-export type EntityStatus  = 'draft' | 'published'
+export type PolicyStatus = 'draft' | 'published' | 'archived';
+export type OutcomeStatus = 'pending' | 'positive' | 'negative';
+export type EntityType = 'official' | 'institution';
+export type EntityStatus = 'draft' | 'published';
+export type FundingSource = 'Public Purse' | 'External' | 'Loan' | 'Donor' | 'Grant' | 'Mixed' | 'Private';
+export type MediaLinkType = 'article' | 'video' | 'statement' | 'press_release' | 'other';
 
-export interface PreRatings {
-  transparency:  number | null
-  representation: number | null
-  justification: number | null
-  readiness:     number | null
+export interface RatingDimensions {
+  Transparency?: number;
+  Representation?: number;
+  Justification?: number;
+  Prudence?: number;
+  Effectiveness?: number;
+  'User Experience'?: number;
+  Equity?: number;
+  'Cost-Efficiency'?: number;
 }
 
-export interface PostRatings {
-  effectiveness: number | null
-  ux:            number | null
-  equity:        number | null
-  cost:          number | null
-}
-
-export interface Finance {
-  totalAmount:    string | null
-  source:         string | null
-  sourceDetail:   string | null
-  donor:          string | null
-  disbursed:      string | null
-  loan:           string | null
-  grant:          string | null
-  partnership:    string | null
-  notes:          string | null
-  fromPublicPurse: boolean | null
-  budgetPublic:   boolean | null
-  budgetUrl:      string | null
-  budgetLabel:    string | null
+export interface PolicyFinance {
+  totalAmount?: string;
+  fundingSource?: FundingSource;
+  fromPublicPurse?: boolean;
+  donorName?: string;
+  loanTerms?: string;
+  grantDetails?: string;
+  disbursedAmount?: string;
+  hasBudgetDoc?: boolean;
+  budgetDocUrl?: string;
+  budgetDocLabel?: string;
+  notes?: string;
 }
 
 export interface PolicyRef {
-  label: string
-  url:   string
+  label: string;
+  url: string;
 }
 
 export interface Policy {
-  id:             string
-  created_at:     string
-  title:          string
-  category:       string
-  date:           string | null
-  sponsor:        string
-  party:          string
-  tags:           string[]
-  status:         PolicyStatus
-  intro:          string
-  background:     string
-  keydetails:     string
-  timeline:       string
-  structure:      string
-  outcome:        string
-  outcome_status: OutcomeStatus
-  pre_ratings:    PreRatings
-  post_ratings:   PostRatings
-  finance:        Finance | null
-  refs:           PolicyRef[]
-  likes:          number
+  id: string;
+  created_at: string;
+  title: string;
+  category: string;
+  date: string | null;
+  sponsor: string;
+  party: string;
+  tags: string[];
+  status: PolicyStatus;
+  intro: string;
+  background: string;
+  keydetails: string;
+  timeline: string;
+  structure: string;
+  outcome: string;
+  outcome_status: OutcomeStatus;
+  pre_ratings: RatingDimensions;
+  post_ratings: RatingDimensions;
+  finance: PolicyFinance | null;
+  refs: PolicyRef[];
+  likes: number;
 }
 
 export interface MediaLink {
-  type:   'article' | 'video' | 'statement' | 'press' | 'other'
-  title:  string
-  source: string
-  date:   string | null
-  url:    string
+  type: MediaLinkType;
+  title: string;
+  source: string;
+  date: string;
+  url: string;
 }
 
 export interface EntityUpdate {
-  date: string
-  text: string
+  date: string;
+  text: string;
 }
 
 export interface Entity {
-  id:              string
-  created_at:      string
-  type:            EntityType
-  status:          EntityStatus
-  name:            string
-  role:            string
-  party:           string
-  tenure:          string
-  tags:            string[]
-  bio:             string
-  background:      string
-  timeline:        string
-  photos:          string[]
-  media_links:     MediaLink[]
-  linked_policies: string[]
-  updates:         EntityUpdate[]
-  budget:          string | null
-  website:         string | null
-}
-
-export interface Comment {
-  id:         string
-  created_at: string
-  policy_id:  string
-  user_name:  string
-  user_email: string
-  text:       string
-  likes:      number
-}
-
-export interface Rating {
-  id:         string
-  created_at: string
-  policy_id:  string
-  user_email: string
-  ratings:    PreRatings & PostRatings
+  id: string;
+  created_at: string;
+  type: EntityType;
+  status: EntityStatus;
+  name: string;
+  role: string;
+  party: string;
+  tenure: string;
+  tags: string[];
+  bio: string;
+  background: string;
+  timeline: string;
+  photos: string[];
+  media_links: MediaLink[];
+  linked_policies: string[];
+  updates: EntityUpdate[];
+  budget: string | null;
+  website: string | null;
 }
 
 export interface Tag {
-  code:   string
-  label:  string
-  desc:   string
-  color:  string
-  bg:     string
-  border: string
+  id: string;
+  created_at: string;
+  code: string;
+  label: string;
+  description: string;
+  color: string;
+  is_core: boolean;
 }
+
+export interface Comment {
+  id: string;
+  created_at: string;
+  policy_id: string;
+  user_id: string | null;
+  user_name: string;
+  user_email: string | null;
+  text: string;
+  likes: number;
+  upvoted_by: string[];
+}
+
+export interface Rating {
+  id: string;
+  created_at: string;
+  policy_id: string;
+  user_id: string | null;
+  user_email: string;
+  ratings: RatingDimensions;
+}
+
+export const RATING_DIMENSIONS: (keyof RatingDimensions)[] = [
+  'Transparency',
+  'Representation',
+  'Justification',
+  'Prudence',
+  'Effectiveness',
+  'User Experience',
+  'Equity',
+  'Cost-Efficiency',
+];
+
+export const RATING_DIMENSION_DESCRIPTIONS: Record<string, string> = {
+  Transparency: 'How open and accessible is information about this policy?',
+  Representation: 'Does it represent the interests of ordinary Ghanaians?',
+  Justification: 'Is there clear reasoning and evidence behind it?',
+  Prudence: 'Was it financially and strategically sensible?',
+  Effectiveness: 'Has it achieved or is it likely to achieve its goals?',
+  'User Experience': 'How easy is it for citizens to access or benefit?',
+  Equity: 'Is the impact fair across different groups?',
+  'Cost-Efficiency': 'Does the cost justify the benefit?',
+};
+
+export const CORE_TAG_CODES = ['NPP', 'NDC', 'PEP', 'COMP', 'CORR', 'ADM', 'REPU', 'CONT', 'NCOM'];
+
+export const POLICY_CATEGORIES = [
+  'Finance & Economy',
+  'Health',
+  'Education',
+  'Infrastructure',
+  'Agriculture',
+  'Energy',
+  'Security & Defence',
+  'Governance & Legal',
+  'Trade & Investment',
+  'Environment',
+  'Social Protection',
+  'Technology & ICT',
+  'Other',
+];
+
+export const FUNDING_SOURCES: FundingSource[] = [
+  'Public Purse', 'External', 'Loan', 'Donor', 'Grant', 'Mixed', 'Private',
+];
+
+export const MEDIA_LINK_TYPES: MediaLinkType[] = [
+  'article', 'video', 'statement', 'press_release', 'other',
+];

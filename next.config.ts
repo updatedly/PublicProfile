@@ -1,14 +1,22 @@
-import type { NextConfig } from 'next'
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '**' }, // allow any HTTPS image URL
+      { protocol: 'https', hostname: '**' },
     ],
   },
-  experimental: {
-    serverActions: { bodySizeLimit: '2mb' },
+  // Allow direct Anthropic API calls from browser in development
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+        ],
+      },
+    ];
   },
-}
+};
 
-export default nextConfig
+export default nextConfig;

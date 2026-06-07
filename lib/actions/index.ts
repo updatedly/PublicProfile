@@ -1,368 +1,135 @@
-'use server'
+'use server';
 
-import { revalidatePath } from 'next/cache'
-import { createClient } from '../supabase/server'
-import type { MediaLink } from '../types'
+import { revalidatePath } from 'next/cache';
+import { createClient } from '../supabase/server';
+import type { Policy, Entity, Tag, PolicyFinance, MediaLink } from '../types';
 
-function optionalText(value: FormDataEntryValue | null) {
-  const text = typeof value === 'string' ? value.trim() : ''
-  return text || null
-}
+// ─── Policy Actions ───────────────────────────────────────────────────────────
 
-function parseFinance(formData: FormData) {
-  const finance = {
-    totalAmount: optionalText(formData.get('finance_totalAmount')),
-    source: optionalText(formData.get('finance_source')),
-    sourceDetail: optionalText(formData.get('finance_sourceDetail')),
-    donor: optionalText(formData.get('finance_donor')),
-    disbursed: optionalText(formData.get('finance_disbursed')),
-    loan: optionalText(formData.get('finance_loan')),
-    grant: optionalText(formData.get('finance_grant')),
-    partnership: optionalText(formData.get('finance_partnership')),
-    notes: optionalText(formData.get('finance_notes')),
-    fromPublicPurse: formData.get('finance_fromPublicPurse') === 'on',
-    budgetPublic: formData.get('finance_budgetPublic') === 'on',
-    budgetUrl: optionalText(formData.get('finance_budgetUrl')),
-    budgetLabel: optionalText(formData.get('finance_budgetLabel')),
-  }
-
-  return Object.values(finance).some(value => value) ? finance : null
-}
-
-function parseMediaLinks(raw: FormDataEntryValue | null): MediaLink[] {
-  if (typeof raw !== 'string') return []
-  const allowedTypes = ['article', 'video', 'statement', 'press', 'other'] as const
-
-  return raw
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => {
-      const [type = 'article', title = '', source = '', date = '', url = ''] = line.split('|').map(part => part.trim())
-      const safeType = allowedTypes.includes(type as MediaLink['type']) ? type as MediaLink['type'] : 'other'
-      return { type: safeType, title, source, date: date || null, url }
-    })
-    .filter(link => link.title && link.url)
-}
-
-// ─── COMMENTS (public — no auth required) ───────────────────
-
-export async function submitComment(formData: FormData) {
-  const supabase = await createClient()
-
-  const policyId = formData.get('policy_id') as string
-  const userName = (formData.get('user_name') as string)?.trim()
-  const userEmail = (formData.get('user_email') as string)?.trim()
-  const text = (formData.get('text') as string)?.trim()
-
-  if (!policyId || !text || !userName) {
-    return { error: 'Name and comment text are required.' }
-  }
-
-  if (text.length > 2000) {
-    return { error: 'Comment must be under 2000 characters.' }
-  }
-
-  const { error } = await supabase.from('comments').insert({
-    policy_id:  policyId,
-    user_name:  userName,
-    user_email: userEmail || null,
-    text,
-  })
-
-  if (error) {
-    console.error('submitComment error:', error.message)
-    return { error: 'Failed to post comment. Please try again.' }
-  }
-
-  revalidatePath(`/policies/${policyId}`)
-  return { success: true }
-}
-
-// ─── LIKES (public — no auth required) ──────────────────────
-
-export async function likePolicy(policyId: string) {
-  const supabase = await createClient()
-
-  const { error } = await supabase.rpc('increment_policy_likes', {
-    policy_id: policyId,
-  })
-
-  if (error) {
-    // Fallback: fetch current and increment manually
-    const { data } = await supabase
-      .from('policies')
-      .select('likes')
-      .eq('id', policyId)
-      .single()
-
-    if (data) {
-      await supabase
-        .from('policies')
-        .update({ likes: (data.likes ?? 0) + 1 })
-        .eq('id', policyId)
-    }
-  }
-
-  revalidatePath(`/policies/${policyId}`)
-  revalidatePath('/')
-  return { success: true }
-}
-
-// ─── RATINGS (public — no auth required) ────────────────────
-
-export async function submitRating(formData: FormData) {
-  const supabase = await createClient()
-
-  const policyId  = formData.get('policy_id') as string
-  const userEmail = (formData.get('user_email') as string)?.trim() || 'anonymous'
-
-  const ratings = {
-    transparency:   Number(formData.get('transparency'))   || null,
-    representation: Number(formData.get('representation')) || null,
-    justification:  Number(formData.get('justification'))  || null,
-    readiness:      Number(formData.get('readiness'))      || null,
-    effectiveness:  Number(formData.get('effectiveness'))  || null,
-    ux:             Number(formData.get('ux'))             || null,
-    equity:         Number(formData.get('equity'))         || null,
-    cost:           Number(formData.get('cost'))           || null,
-  }
-
-  const { error } = await supabase.from('ratings').upsert(
-    { policy_id: policyId, user_email: userEmail, ratings },
-    { onConflict: 'policy_id,user_email' }
-  )
-
-  if (error) {
-    console.error('submitRating error:', error.message)
-    return { error: 'Failed to save rating. Please try again.' }
-  }
-
-  revalidatePath(`/policies/${policyId}`)
-  return { success: true }
-}
-
-// ─── ADMIN — POLICIES ────────────────────────────────────────
-
-export async function createPolicy(formData: FormData) {
-  const supabase = await createClient()
-
-  const tags = (formData.get('tags') as string)
-    ?.split(',').map(t => t.trim().toUpperCase()).filter(Boolean) ?? []
-
-  const preRatings = {
-    transparency:   parseFloat(formData.get('r_transparency') as string) || null,
-    representation: parseFloat(formData.get('r_representation') as string) || null,
-    justification:  parseFloat(formData.get('r_justification') as string) || null,
-    readiness:      parseFloat(formData.get('r_readiness') as string) || null,
-  }
-  const postRatings = {
-    effectiveness: parseFloat(formData.get('r_effectiveness') as string) || null,
-    ux:            parseFloat(formData.get('r_ux') as string) || null,
-    equity:        parseFloat(formData.get('r_equity') as string) || null,
-    cost:          parseFloat(formData.get('r_cost') as string) || null,
-  }
-
-  const row = {
-    title:          (formData.get('title') as string)?.trim(),
-    category:       (formData.get('category') as string)?.trim(),
-    date:           (formData.get('date') as string) || null,
-    sponsor:        (formData.get('sponsor') as string)?.trim() || 'Unknown',
-    party:          (formData.get('party') as string)?.trim() || '',
-    tags,
-    status:         (formData.get('status') as string) || 'draft',
-    intro:          (formData.get('intro') as string)?.trim() || '',
-    background:     (formData.get('background') as string)?.trim() || '',
-    keydetails:     (formData.get('keydetails') as string)?.trim() || '',
-    timeline:       (formData.get('timeline') as string)?.trim() || '',
-    structure:      (formData.get('structure') as string)?.trim() || '',
-    outcome:        (formData.get('outcome') as string)?.trim() || '',
-    outcome_status: (formData.get('outcome_status') as string) || 'pending',
-    pre_ratings:    preRatings,
-    post_ratings:   postRatings,
-    likes:          0,
-    refs:           [],
-    finance:        parseFinance(formData),
-  }
-
-  if (!row.title) return { error: 'Title is required.' }
-
-  const { data, error } = await supabase.from('policies').insert(row).select().single()
-
-  if (error) {
-    console.error('createPolicy error:', error.message)
-    return { error: error.message }
-  }
-
-  revalidatePath('/')
-  revalidatePath('/admin')
-  return { success: true, id: data.id }
-}
-
-export async function updatePolicy(id: string, formData: FormData) {
-  const supabase = await createClient()
-
-  const tags = (formData.get('tags') as string)
-    ?.split(',').map(t => t.trim().toUpperCase()).filter(Boolean) ?? []
-
-  const preRatings = {
-    transparency:   parseFloat(formData.get('r_transparency') as string) || null,
-    representation: parseFloat(formData.get('r_representation') as string) || null,
-    justification:  parseFloat(formData.get('r_justification') as string) || null,
-    readiness:      parseFloat(formData.get('r_readiness') as string) || null,
-  }
-  const postRatings = {
-    effectiveness: parseFloat(formData.get('r_effectiveness') as string) || null,
-    ux:            parseFloat(formData.get('r_ux') as string) || null,
-    equity:        parseFloat(formData.get('r_equity') as string) || null,
-    cost:          parseFloat(formData.get('r_cost') as string) || null,
-  }
-
-  const row = {
-    title:          (formData.get('title') as string)?.trim(),
-    category:       (formData.get('category') as string)?.trim(),
-    date:           (formData.get('date') as string) || null,
-    sponsor:        (formData.get('sponsor') as string)?.trim() || 'Unknown',
-    party:          (formData.get('party') as string)?.trim() || '',
-    tags,
-    status:         (formData.get('status') as string) || 'draft',
-    intro:          (formData.get('intro') as string)?.trim() || '',
-    background:     (formData.get('background') as string)?.trim() || '',
-    keydetails:     (formData.get('keydetails') as string)?.trim() || '',
-    timeline:       (formData.get('timeline') as string)?.trim() || '',
-    structure:      (formData.get('structure') as string)?.trim() || '',
-    outcome:        (formData.get('outcome') as string)?.trim() || '',
-    outcome_status: (formData.get('outcome_status') as string) || 'pending',
-    pre_ratings:    preRatings,
-    post_ratings:   postRatings,
-    finance:        parseFinance(formData),
-  }
-
-  const { error } = await supabase.from('policies').update(row).eq('id', id)
-
-  if (error) {
-    console.error('updatePolicy error:', error.message)
-    return { error: error.message }
-  }
-
-  revalidatePath('/')
-  revalidatePath(`/policies/${id}`)
-  revalidatePath('/admin')
-  return { success: true }
+export async function upsertPolicy(policy: Partial<Policy> & { id?: string }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('policies')
+    .upsert(policy)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath('/');
+  revalidatePath('/policies/' + (policy.id ?? data.id));
+  return data;
 }
 
 export async function deletePolicy(id: string) {
-  const supabase = await createClient()
-
-  const { error } = await supabase.from('policies').delete().eq('id', id)
-  if (error) return { error: error.message }
-
-  revalidatePath('/')
-  revalidatePath('/admin')
-  return { success: true }
+  const supabase = await createClient();
+  const { error } = await supabase.from('policies').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+  revalidatePath('/');
 }
 
-export async function publishPolicy(id: string) {
-  const supabase = await createClient()
-  await supabase.from('policies').update({ status: 'published' }).eq('id', id)
-  revalidatePath('/')
-  revalidatePath('/admin')
-  return { success: true }
-}
+// ─── Entity Actions ───────────────────────────────────────────────────────────
 
-export async function archivePolicy(id: string) {
-  const supabase = await createClient()
-  await supabase.from('policies').update({ status: 'archived' }).eq('id', id)
-  revalidatePath('/')
-  revalidatePath('/admin')
-  return { success: true }
-}
-
-// ─── ADMIN — ENTITIES ────────────────────────────────────────
-
-export async function createEntity(formData: FormData) {
-  const supabase = await createClient()
-
-  const tags = (formData.get('tags') as string)
-    ?.split(',').map(t => t.trim().toUpperCase()).filter(Boolean) ?? []
-
-  const photos = (formData.get('photos') as string)
-    ?.split('\n').map(u => u.trim()).filter(Boolean) ?? []
-
-  const row = {
-    type:            (formData.get('type') as string) || 'official',
-    status:          (formData.get('status') as string) || 'draft',
-    name:            (formData.get('name') as string)?.trim(),
-    role:            (formData.get('role') as string)?.trim() || '',
-    party:           (formData.get('party') as string)?.trim() || '',
-    tenure:          (formData.get('tenure') as string)?.trim() || '',
-    tags,
-    bio:             (formData.get('bio') as string)?.trim() || '',
-    background:      (formData.get('background') as string)?.trim() || '',
-    timeline:        (formData.get('timeline') as string)?.trim() || '',
-    photos,
-    media_links:     parseMediaLinks(formData.get('media_links')),
-    linked_policies: [],
-    updates:         [],
-    budget:          (formData.get('budget') as string)?.trim() || null,
-    website:         (formData.get('website') as string)?.trim() || null,
-  }
-
-  if (!row.name) return { error: 'Name is required.' }
-
-  const { data, error } = await supabase.from('entities').insert(row).select().single()
-
-  if (error) {
-    console.error('createEntity error:', error.message)
-    return { error: error.message }
-  }
-
-  revalidatePath('/officials')
-  revalidatePath('/admin')
-  return { success: true, id: data.id }
-}
-
-export async function updateEntity(id: string, formData: FormData) {
-  const supabase = await createClient()
-
-  const tags = (formData.get('tags') as string)
-    ?.split(',').map(t => t.trim().toUpperCase()).filter(Boolean) ?? []
-
-  const photos = (formData.get('photos') as string)
-    ?.split('\n').map(u => u.trim()).filter(Boolean) ?? []
-
-  const row = {
-    type:     (formData.get('type') as string) || 'official',
-    status:   (formData.get('status') as string) || 'draft',
-    name:     (formData.get('name') as string)?.trim(),
-    role:     (formData.get('role') as string)?.trim() || '',
-    party:    (formData.get('party') as string)?.trim() || '',
-    tenure:   (formData.get('tenure') as string)?.trim() || '',
-    tags,
-    bio:      (formData.get('bio') as string)?.trim() || '',
-    background: (formData.get('background') as string)?.trim() || '',
-    timeline: (formData.get('timeline') as string)?.trim() || '',
-    photos,
-    media_links: parseMediaLinks(formData.get('media_links')),
-    budget:   (formData.get('budget') as string)?.trim() || null,
-    website:  (formData.get('website') as string)?.trim() || null,
-  }
-
-  const { error } = await supabase.from('entities').update(row).eq('id', id)
-  if (error) return { error: error.message }
-
-  revalidatePath('/officials')
-  revalidatePath(`/officials/${id}`)
-  revalidatePath('/admin')
-  return { success: true }
+export async function upsertEntity(entity: Partial<Entity> & { id?: string }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('entities')
+    .upsert(entity)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath('/officials');
+  revalidatePath('/officials/' + (entity.id ?? data.id));
+  return data;
 }
 
 export async function deleteEntity(id: string) {
-  const supabase = await createClient()
-  const { error } = await supabase.from('entities').delete().eq('id', id)
-  if (error) return { error: error.message }
+  const supabase = await createClient();
+  const { error } = await supabase.from('entities').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+  revalidatePath('/officials');
+}
 
-  revalidatePath('/officials')
-  revalidatePath('/admin')
-  return { success: true }
+// ─── Tag Actions ──────────────────────────────────────────────────────────────
+
+export async function upsertTag(tag: Partial<Tag> & { id?: string }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('tags')
+    .upsert(tag)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath('/');
+  return data;
+}
+
+export async function deleteTag(id: string) {
+  const supabase = await createClient();
+  // Check core
+  const { data: tag } = await supabase.from('tags').select('is_core').eq('id', id).single();
+  if (tag?.is_core) throw new Error('Core tags cannot be deleted.');
+  const { error } = await supabase.from('tags').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+  revalidatePath('/');
+}
+
+// ─── Comment Actions ──────────────────────────────────────────────────────────
+
+export async function addComment(payload: {
+  policy_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  text: string;
+}) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('comments')
+    .insert({ ...payload, likes: 0, upvoted_by: [] })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath('/policies/' + payload.policy_id);
+  return data;
+}
+
+export async function upvoteComment(commentId: string, userId: string) {
+  const supabase = await createClient();
+  // Get current
+  const { data: comment, error: fetchError } = await supabase
+    .from('comments')
+    .select('likes, upvoted_by')
+    .eq('id', commentId)
+    .single();
+  if (fetchError) throw new Error(fetchError.message);
+  const upvotedBy: string[] = comment.upvoted_by ?? [];
+  if (upvotedBy.includes(userId)) return; // already upvoted
+  const { error } = await supabase
+    .from('comments')
+    .update({ likes: comment.likes + 1, upvoted_by: [...upvotedBy, userId] })
+    .eq('id', commentId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Rating Actions ───────────────────────────────────────────────────────────
+
+export async function submitRating(payload: {
+  policy_id: string;
+  user_id: string;
+  user_email: string;
+  ratings: Record<string, number>;
+}) {
+  const supabase = await createClient();
+  // Upsert by user + policy
+  const { error } = await supabase
+    .from('ratings')
+    .upsert(
+      { ...payload },
+      { onConflict: 'policy_id,user_email' }
+    );
+  if (error) {
+    // If unique constraint doesn't exist yet, just insert
+    const { error: insertError } = await supabase.from('ratings').insert(payload);
+    if (insertError) throw new Error(insertError.message);
+  }
+  revalidatePath('/policies/' + payload.policy_id);
 }

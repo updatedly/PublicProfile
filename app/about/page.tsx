@@ -1,125 +1,120 @@
-import Header from '@/components/Header'
-import Footer from '@/components/Footer'
+import type { Metadata } from 'next';
+import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'About — Public Profile Ghana',
+  description: 'Learn about the Public Profile project and how it tracks accountability in Ghana.',
+};
 
 export default function AboutPage() {
-  const PRE_METRICS = [
-    { label: 'Transparency',   desc: 'Is it easy for the average citizen to understand?' },
-    { label: 'Representation', desc: 'Were key stakeholders and community members actively consulted?' },
-    { label: 'Justification',  desc: 'Does it directly address a real, verified national issue?' },
-    { label: 'Prudence',       desc: 'Do we trust the government to execute this without technical failure or wasting public funds?' },
-  ]
-  const POST_METRICS = [
-    { label: 'Effectiveness',  desc: 'Did it actually solve the targeted problem?' },
-    { label: 'User Experience',desc: 'How difficult or accessible is it for citizens to interact with it?' },
-    { label: 'Equity',         desc: 'Did the policy distribute benefits fairly and help everyone equally?' },
-    { label: 'Cost-Efficiency',desc: 'Was it a wasteful expenditure or a good use of public funds?' },
-  ]
-  const TAGS = [
-    { code:'NPP',  name:'New Patriotic Party',          desc:'Affiliated with or initiated by the New Patriotic Party.' },
-    { code:'NDC',  name:'National Democratic Congress', desc:'Affiliated with or initiated by the National Democratic Congress.' },
-    { code:'PEP',  name:'Politically Exposed Person',   desc:'Someone in a position of public power, or in close relation to such a person.' },
-    { code:'COMP', name:'Compromised',                  desc:'Evidence or strong indication of compromised integrity or conflict of interest.' },
-    { code:'CORR', name:'Alleged Corruption',           desc:'Associated with active investigations, leaks, or public allegations of corruption.' },
-    { code:'ADM',  name:'Adverse Maleficence',          desc:'Involved in documented misconduct, illegal activities, or explicit criminality.' },
-    { code:'REPU', name:'Reputational Risk',            desc:'Subject to intense public pushback, scrutiny, negative attention, stigma, or widespread backlash.' },
-    { code:'CONT', name:'Controversy',                  desc:'Linked to extreme polarisation, social or political prejudices, or systemic debate.' },
-    { code:'NCOM', name:'Non-Compliance',               desc:'Documented violation, breach of regulatory frameworks, or operational wrongdoing.' },
-  ]
-
-  const section = { padding: '2rem 0', borderBottom: '1px solid var(--border)' }
-  const h2 = { fontFamily: 'var(--display)', fontSize: '1.35rem', fontWeight: 700, marginBottom: '.75rem' }
-  const body = { fontSize: '.88rem', fontWeight: 300, color: 'var(--muted)', lineHeight: 1.72, marginBottom: '1rem' }
-
   return (
-    <>
-      <Header />
-      <main style={{ maxWidth: '760px', margin: '0 auto', padding: '2.5rem 1.75rem' }}>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: '.6rem', textTransform: 'uppercase', letterSpacing: '.14em', color: 'var(--gold)', marginBottom: '.85rem' }}>
+    <div className="container" style={{ padding: '2.5rem 1.25rem', maxWidth: '760px' }}>
+      <div style={{ marginBottom: '2.5rem' }}>
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+          background: 'var(--accent-dim)',
+          border: '1px solid var(--accent-dim-2)',
+          borderRadius: '100px',
+          padding: '0.25em 0.75em',
+          marginBottom: '1rem',
+        }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>
+            An Updatedly Initiative
+          </span>
+        </div>
+        <h1 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '1rem' }}>
           About Public Profile
-        </div>
-        <h1 style={{ fontFamily: 'var(--display)', fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, lineHeight: 1.1, marginBottom: '1.25rem' }}>
-          What this platform does and <em style={{ color: 'var(--gold)' }}>why it matters</em>
         </h1>
+        <p style={{ fontSize: '1.05rem', color: 'var(--text-2)', lineHeight: 1.7, marginBottom: '1.5rem' }}>
+          Public Profile is Ghana's first open civic accountability tracker — built to help ordinary Ghanaians understand what government policies actually mean, where the money goes, and who is responsible.
+        </p>
+      </div>
 
-        <div style={section}>
-          <p style={body}>
-            Public Profile is a civic accountability tracker for Ghana, built and maintained by{' '}
-            <a href="https://youtube.com/@updatedlyinc" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)' }}>Updatedly</a>.
-            It documents government policies, legislative decisions, public officials, and state institutions
-            from 2020 to the present — plainly, fairly, and permanently on record.
-          </p>
-          <p style={body}>
-            Every policy entry follows a six-part structure: Introduction, Background, Key Details,
-            Timeline, Cost Structure &amp; Finance, and Outcome. This ensures consistent, comparable records
-            across administrations and policy areas.
-          </p>
-        </div>
-
-        {/* Rating Framework */}
-        <div style={section}>
-          <h2 style={h2}>Rating Framework</h2>
-          <p style={body}>
-            Every policy is assessed across two phases — before and after implementation — scored 0–10 across
-            eight dimensions by the editorial team. The public can also submit independent community ratings.
-          </p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '1rem' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: 'uppercase', letterSpacing: '.09em', color: 'var(--gold)', marginBottom: '.3rem' }}>Pre-Written Metrics</div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.6rem', color: 'var(--muted2)', marginBottom: '.75rem' }}>Design &amp; Intent</div>
-              <p style={{ fontSize: '.72rem', color: 'var(--muted)', marginBottom: '.75rem', lineHeight: 1.6, fontWeight: 300 }}>Evaluates the policy before or as it launches — focusing on how well it was planned and designed.</p>
-              {PRE_METRICS.map(m => (
-                <div key={m.label} style={{ marginBottom: '.55rem' }}>
-                  <div style={{ fontSize: '.82rem', fontWeight: 600 }}>{m.label}</div>
-                  <div style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 300 }}>{m.desc}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '1rem' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: 'uppercase', letterSpacing: '.09em', color: 'var(--green)', marginBottom: '.3rem' }}>Post-Written Metrics</div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.6rem', color: 'var(--muted2)', marginBottom: '.75rem' }}>Execution &amp; Reality</div>
-              <p style={{ fontSize: '.72rem', color: 'var(--muted)', marginBottom: '.75rem', lineHeight: 1.6, fontWeight: 300 }}>Evaluates the policy after implementation — focusing on its real-world impact and results.</p>
-              {POST_METRICS.map(m => (
-                <div key={m.label} style={{ marginBottom: '.55rem' }}>
-                  <div style={{ fontSize: '.82rem', fontWeight: 600 }}>{m.label}</div>
-                  <div style={{ fontSize: '.72rem', color: 'var(--muted)', fontWeight: 300 }}>{m.desc}</div>
-                </div>
-              ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {[
+          {
+            icon: '🎯',
+            title: 'Our Mission',
+            body: 'We believe accountability starts with understanding. Too often, Ghanaian governance decisions are announced through press releases and partisan framing that ordinary people can\'t navigate. Public Profile cuts through that — presenting policies, decisions, and official conduct in plain language with sourced evidence.'
+          },
+          {
+            icon: '🔍',
+            title: 'What We Track',
+            body: 'Every policy on this platform includes its category, sponsor, party affiliation, detailed breakdown, financial accountability data, references, and both editorial and community ratings. Public official profiles show career histories, linked policies, media coverage, and flagged concerns.'
+          },
+          {
+            icon: '⚖️',
+            title: 'Our Principles',
+            body: 'Factual, not partisan. We track policies under NPP and NDC governments equally. We do not editorially advocate for any party. Our ratings measure design and execution quality — not political alignment. Every claim is sourced.'
+          },
+          {
+            icon: '📺',
+            title: 'The Updatedly Channel',
+            body: 'Public Profile is the data backbone of Updatedly — a YouTube channel breaking down complex Ghanaian national topics for educated viewers aged 25-35. Short, sourced, sardonic — not commentary, just clarity.'
+          },
+          {
+            icon: '🤝',
+            title: 'Community',
+            body: 'Sign in with Google to rate policies across 8 dimensions and join the discussion. Community ratings are averaged and displayed alongside editorial scores. Your input matters.'
+          },
+        ].map(({ icon, title, body }) => (
+          <div key={title} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '1.5rem', flexShrink: 0, marginTop: '0.1rem' }}>{icon}</span>
+            <div>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>{title}</h2>
+              <p style={{ color: 'var(--text-2)', lineHeight: 1.7, fontSize: '0.925rem' }}>{body}</p>
             </div>
           </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Tag Glossary */}
-        <div style={section}>
-          <h2 style={h2}>Risk Tag Glossary</h2>
-          <p style={body}>Tags classify the nature of concern attached to a policy or public figure:</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5px' }}>
-            {TAGS.map(t => (
-              <div key={t.code} style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', padding: '.75rem', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                <span className={`tag tag-${t.code}`} style={{ flexShrink: 0 }}>{t.code}</span>
-                <div>
-                  <div style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: '.12rem' }}>{t.name}</div>
-                  <div style={{ fontSize: '.75rem', color: 'var(--muted)', fontWeight: 300 }}>{t.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+      <div style={{
+        marginTop: '3rem',
+        padding: '1.5rem',
+        background: 'var(--accent-dim)',
+        border: '1px solid var(--accent-dim-2)',
+        borderRadius: 'var(--radius-lg)',
+        display: 'flex',
+        gap: '1rem',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+      }}>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Ready to explore?</div>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>Browse policies and official profiles.</p>
         </div>
-
-        {/* Editorial */}
-        <div style={{ ...section, borderBottom: 'none' }}>
-          <h2 style={h2}>Editorial Principles</h2>
-          <p style={body}>Public Profile does not advocate for or against any political party. Every entry is documented factually, sourced from public records, official documents, and credible journalism. Where facts are disputed, both positions are noted. Ratings reflect the editorial team&apos;s research-based assessment, not political opinion.</p>
-          <p style={body}>All community comments are open for posting without registration. They represent individual views and do not reflect the position of Updatedly.</p>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <Link href="/" className="btn btn-primary btn-sm">View Policies</Link>
+          <Link href="/officials" className="btn btn-secondary btn-sm">View Officials</Link>
         </div>
-      </main>
-      <Footer />
+      </div>
 
-      <style>{`
-        @media(max-width:640px){
-          main > div > div { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-    </>
-  )
+      {/* Rating framework */}
+      <div style={{ marginTop: '3rem' }}>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem' }}>Rating Framework</h2>
+        <p style={{ color: 'var(--text-2)', fontSize: '0.9rem', lineHeight: 1.7, marginBottom: '1.25rem' }}>
+          Policies are rated across 8 dimensions on a 0–10 scale. Pre-implementation ratings assess design and intent; post-implementation ratings assess execution and real-world impact.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
+          {[
+            ['Transparency', 'How open and accessible is information?'],
+            ['Representation', 'Does it serve ordinary Ghanaians?'],
+            ['Justification', 'Is there clear evidence-based reasoning?'],
+            ['Prudence', 'Was it financially and strategically sensible?'],
+            ['Effectiveness', 'Has it achieved its stated goals?'],
+            ['User Experience', 'Can citizens easily access or benefit?'],
+            ['Equity', 'Is the impact fair across different groups?'],
+            ['Cost-Efficiency', 'Does the cost justify the benefit?'],
+          ].map(([dim, desc]) => (
+            <div key={dim} className="card" style={{ padding: '0.875rem' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>{dim}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', lineHeight: 1.5 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

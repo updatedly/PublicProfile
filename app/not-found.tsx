@@ -1,10 +1,12 @@
-import Link from 'next/link'
+import Link from 'next/link';
+
 export default function NotFound() {
   return (
-    <div style={{ minHeight:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', fontFamily:'var(--mono)' }}>
-      <div style={{ fontSize:'3rem', opacity:.2 }}>404</div>
-      <div style={{ fontSize:'.7rem', textTransform:'uppercase', letterSpacing:'.12em', color:'var(--muted)' }}>Page not found</div>
-      <Link href="/" style={{ color:'var(--gold)', fontSize:'.65rem', textTransform:'uppercase', letterSpacing:'.09em' }}>← Back to Tracker</Link>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', gap: '1rem', textAlign: 'center', padding: '2rem' }}>
+      <div style={{ fontSize: '3.5rem' }}>404</div>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Page Not Found</h1>
+      <p style={{ color: 'var(--text-2)' }}>The page you're looking for doesn't exist.</p>
+      <Link href="/" className="btn btn-primary">Go Home</Link>
     </div>
-  )
+  );
 }

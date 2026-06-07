@@ -1,353 +1,242 @@
-import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { getPolicyById, getCommentsByPolicy, getRatingsByPolicy } from '@/lib/queries'
-import Header from '@/components/Header'
-import Footer from '@/components/Footer'
-import CommentForm from '@/components/CommentForm'
-import RatingForm from '@/components/RatingForm'
-import type { Policy, Comment, Rating } from '@/lib/types'
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+import { getPolicy, getTags, getComments, getRatings } from '@/lib/queries';
+import { TagChip } from '@/components/TagChip';
+import { FinanceBlock } from '@/components/FinanceBlock';
+import { RatingForm } from '@/components/RatingForm';
+import { CommentForm } from '@/components/CommentForm';
+import type { RatingDimensions } from '@/lib/types';
+import { RATING_DIMENSIONS } from '@/lib/types';
 
-export const revalidate = 30
+export const revalidate = 60;
 
 interface Props { params: Promise<{ id: string }> }
 
-// ─── Helpers ────────────────────────────────────────────────
-
-function fmtDate(d: string | null) {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const policy = await getPolicy(id);
+  if (!policy) return { title: 'Policy Not Found' };
+  return {
+    title: `${policy.title} — Public Profile`,
+    description: policy.intro?.slice(0, 160),
+  };
 }
 
-function avgRatings(ratings: Rating[]) {
-  if (!ratings.length) return null
-  const keys = ['transparency','representation','justification','readiness','effectiveness','ux','equity','cost'] as const
-  const avgs: Record<string, number | null> = {}
-  keys.forEach(k => {
-    const vals = ratings.map(r => ((r.ratings as unknown) as Record<string,number|null>)[k]).filter((v): v is number => v != null)
-    avgs[k] = vals.length ? +(vals.reduce((a,b) => a+b,0) / vals.length).toFixed(1) : null
-  })
-  return { count: ratings.length, avgs }
-}
-
-// ─── Sub-components ─────────────────────────────────────────
-
-function RatingCard({ label, desc, value }: { label: string; desc: string; value: number | null }) {
-  const pct = value != null ? value * 10 : 0
+function RatingBar({ label, value, max = 10 }: { label: string; value: number; max?: number }) {
   return (
-    <div style={{ marginBottom: '.7rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.25rem' }}>
-        <div>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: '.58rem', fontWeight: 600, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: '.52rem', color: 'var(--muted)', marginLeft: '.5rem' }}>{desc}</span>
-        </div>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: '.6rem', color: value != null ? 'var(--gold)' : 'var(--muted2)', minWidth: '32px', textAlign: 'right' }}>
-          {value != null ? `${value}/10` : '—'}
-        </span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <span style={{ fontSize: '0.8rem', color: 'var(--text-2)', width: '130px', flexShrink: 0 }}>{label}</span>
+      <div style={{ flex: 1, height: '6px', background: 'var(--bg-4)', borderRadius: '3px', overflow: 'hidden' }}>
+        <div style={{ width: `${(value / max) * 100}%`, height: '100%', background: 'var(--accent)', borderRadius: '3px' }} />
       </div>
-      <div className="rating-bar-track">
-        <div className="rating-bar-fill" style={{ width: `${pct}%` }} />
+      <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--accent)', width: '32px', textAlign: 'right' }}>
+        {value.toFixed(1)}
+      </span>
+    </div>
+  );
+}
+
+function Section({ label, content }: { label: string; content: string }) {
+  if (!content?.trim()) return null;
+  return (
+    <section>
+      <div className="section-label">{label}</div>
+      <div style={{ fontSize: '0.925rem', color: 'var(--text-2)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
+        {content}
       </div>
-    </div>
-  )
+    </section>
+  );
 }
 
-function TimelineBlock({ raw }: { raw: string }) {
-  const items = raw.split('\n').filter(Boolean).map(line => {
-    const [date, ...rest] = line.split('|')
-    return { date: date.trim(), text: rest.join('|').trim() }
-  })
-  if (!items.length) return <p style={{ color: 'var(--muted)', fontSize: '.85rem' }}>No timeline entries.</p>
-  return (
-    <div className="tl">
-      {items.map((item, i) => (
-        <div key={i} className="tl-item">
-          <div className="tl-dot" />
-          <div className="tl-date">{item.date}</div>
-          <div className="tl-text">{item.text}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
+export default async function PolicyDetailPage({ params }: Props) {
+  const { id } = await params;
+  const [policy, tags, comments, ratings] = await Promise.all([
+    getPolicy(id),
+    getTags(),
+    getComments(id),
+    getRatings(id),
+  ]);
 
-function KeyDetailsBullets({ raw }: { raw: string }) {
-  const lines = raw.split(/[.\n]/).map(s => s.trim()).filter(s => s.length > 8)
-  if (lines.length <= 1) return <p className="ch-body" style={{ fontSize: '.9rem', lineHeight: 1.78, color: '#ccc6bc', fontWeight: 300 }}>{raw}</p>
-  return (
-    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-      {lines.map((l, i) => (
-        <li key={i} style={{ display: 'flex', gap: '.65rem', padding: '.35rem 0', borderBottom: '1px solid var(--border)', fontSize: '.875rem', lineHeight: 1.65, color: '#ccc6bc', fontWeight: 300 }}>
-          <span style={{ color: 'var(--gold)', flexShrink: 0, marginTop: '.12rem' }}>—</span>
-          <span>{l.replace(/^[-·•]\s*/, '')}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
+  if (!policy) notFound();
 
-// ─── Page ───────────────────────────────────────────────────
+  const preRatings = policy.pre_ratings as RatingDimensions;
+  const postRatings = policy.post_ratings as RatingDimensions;
+  const hasPreRatings = Object.keys(preRatings ?? {}).length > 0;
+  const hasPostRatings = Object.keys(postRatings ?? {}).length > 0;
 
-export default async function PolicyPage({ params }: Props) {
-  const { id } = await params
-  const [policy, comments, ratings] = await Promise.all([
-    getPolicyById(id),
-    getCommentsByPolicy(id),
-    getRatingsByPolicy(id),
-  ])
-
-  if (!policy) notFound()
-
-  const p = policy as Policy
-  const agg = avgRatings(ratings)
-
-  const OUTCOME_LABELS: Record<string,string> = {
-    positive: '✓ Positive', negative: '✗ Negative', pending: '◌ Pending',
-  }
-
-  const PRE_METRICS = [
-    { key: 'transparency',   label: 'Transparency',   desc: 'Citizen-understandable?' },
-    { key: 'representation', label: 'Representation', desc: 'Stakeholders consulted?' },
-    { key: 'justification',  label: 'Justification',  desc: 'Real issue addressed?' },
-    { key: 'readiness',      label: 'Prudence',        desc: 'Trust in execution?' },
-  ]
-  const POST_METRICS = [
-    { key: 'effectiveness',  label: 'Effectiveness',  desc: 'Problem solved?' },
-    { key: 'ux',             label: 'User Experience', desc: 'Accessible to citizens?' },
-    { key: 'equity',         label: 'Equity',          desc: 'Benefits distributed fairly?' },
-    { key: 'cost',           label: 'Cost-Efficiency', desc: 'Good use of funds?' },
-  ]
+  const wordCount = [policy.intro, policy.background, policy.keydetails, policy.outcome]
+    .filter(Boolean).join(' ').split(/\s+/).length;
+  const readTime = Math.max(1, Math.ceil(wordCount / 200));
 
   return (
-    <>
-      <Header />
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '0' }}>
-
-        {/* Back */}
-        <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--border)' }}>
-          <Link href="/" style={{ fontFamily: 'var(--mono)', fontSize: '.6rem', color: 'var(--muted)', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '.08em' }}>
-            ← Back to Tracker
-          </Link>
-        </div>
-
-        {/* Detail layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 0 }}>
-
-          {/* ── LEFT: main content ── */}
-          <div style={{ borderRight: '1px solid var(--border)' }}>
-
-            {/* Header block */}
-            <div style={{ padding: '2rem 1.75rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: 'uppercase', letterSpacing: '.12em', color: 'var(--muted)', marginBottom: '.6rem' }}>
-                {p.category}
-              </div>
-              <h1 style={{ fontFamily: 'var(--display)', fontSize: 'clamp(1.5rem,3vw,2.2rem)', fontWeight: 900, lineHeight: 1.15, marginBottom: '1rem' }}>
-                {p.title}
-              </h1>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', alignItems: 'center', paddingTop: '.85rem', borderTop: '1px solid var(--border)' }}>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: '.6rem', color: 'var(--muted)' }}>
-                  <span style={{ color: 'var(--muted2)' }}>Sponsor</span>{' '}
-                  <strong style={{ color: 'var(--text)' }}>{p.sponsor}</strong>
-                </div>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: '.6rem', color: 'var(--muted)' }}>
-                  <span style={{ color: 'var(--muted2)' }}>Date</span>{' '}
-                  <strong style={{ color: 'var(--text)' }}>{fmtDate(p.date)}</strong>
-                </div>
-                {p.party && <span className={`tag tag-${p.party}`}>{p.party}</span>}
-                <span className={`outcome-badge ${p.outcome_status}`}>{OUTCOME_LABELS[p.outcome_status] ?? '—'}</span>
-                <div style={{ display: 'flex', gap: '.35rem', marginLeft: 'auto', flexWrap: 'wrap' }}>
-                  {p.tags.map(t => <span key={t} className={`tag tag-${t}`}>{t}</span>)}
-                </div>
-              </div>
+    <div className="container" style={{ padding: '2rem 1.25rem' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 320px',
+        gap: '2rem',
+        alignItems: 'start',
+      }}
+        className="policy-detail-grid"
+      >
+        {/* Main column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', minWidth: 0 }}>
+          {/* Header */}
+          <div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginBottom: '0.875rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {policy.category}
+              </span>
+              <span>·</span>
+              <span className={`badge badge-${policy.outcome_status}`}>
+                {policy.outcome_status.charAt(0).toUpperCase() + policy.outcome_status.slice(1)}
+              </span>
+              <span className={`badge badge-${policy.status}`}>{policy.status}</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginLeft: 'auto' }}>
+                {readTime} min read
+              </span>
             </div>
 
-            {/* 6 chapters */}
-            <div style={{ padding: '0 1.75rem' }}>
-              {[
-                { n: '01', t: 'Introduction',            content: p.intro,       type: 'text' },
-                { n: '02', t: 'Background',              content: p.background,  type: 'text' },
-                { n: '03', t: 'Key Details',             content: p.keydetails,  type: 'bullets' },
-                { n: '04', t: 'Timeline',                content: p.timeline,    type: 'timeline' },
-                { n: '05', t: 'Cost Structure & Finance',content: p.structure,   type: 'text' },
-                { n: '06', t: 'Outcome',                 content: p.outcome,     type: 'text' },
-              ].map(ch => (
-                <div key={ch.n} className="chapter">
-                  <div className="ch-num">Chapter {ch.n}</div>
-                  <div className="ch-title">{ch.t}</div>
-                  <div className="ch-body">
-                    {ch.type === 'timeline' && <TimelineBlock raw={ch.content} />}
-                    {ch.type === 'bullets'  && <KeyDetailsBullets raw={ch.content} />}
-                    {ch.type === 'text'     && ch.content.split('\n').filter(Boolean).map((l, i) => <p key={i}>{l}</p>)}
-                  </div>
-                </div>
-              ))}
+            <h1 style={{ fontSize: 'clamp(1.4rem, 3.5vw, 2rem)', fontWeight: 700, marginBottom: '1rem', lineHeight: 1.25 }}>
+              {policy.title}
+            </h1>
 
-              {/* References */}
-              {p.refs?.length > 0 && (
-                <div className="chapter">
-                  <div className="ch-num">Sources</div>
-                  <div className="ch-title">References &amp; Documents</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                    {p.refs.map((ref, i) => (
-                      <a key={i} href={ref.url} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.6rem .85rem', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--gold)', textDecoration: 'none', fontFamily: 'var(--mono)', fontSize: '.65rem' }}>
-                        <span style={{ opacity: .5 }}>↗</span> {ref.label}
-                      </a>
-                    ))}
-                  </div>
-                </div>
+            <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
+              {policy.sponsor && (
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>
+                  <strong>Sponsor:</strong> {policy.sponsor}
+                </span>
+              )}
+              {policy.party && (
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>
+                  <strong>Party:</strong> {policy.party}
+                </span>
+              )}
+              {policy.date && (
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>
+                  {new Date(policy.date).toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </span>
               )}
             </div>
 
-            {/* Comments */}
-            <div style={{ padding: '1.5rem 1.75rem 2rem', borderTop: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.56rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--muted)', marginBottom: '1.25rem' }}>
-                Public Comments ({comments.length})
+            {policy.tags?.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                {policy.tags.map(code => <TagChip key={code} code={code} tags={tags} />)}
               </div>
-
-              {comments.length === 0 ? (
-                <p style={{ color: 'var(--muted)', fontSize: '.82rem', fontWeight: 300 }}>No comments yet. Be the first.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '.5px', marginBottom: '1.5rem' }}>
-                  {comments.map(c => (
-                    <div key={c.id} style={{ padding: '.9rem', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.5rem' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: '.6rem', fontWeight: 600, color: 'var(--text)' }}>{c.user_name}</span>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: '.54rem', color: 'var(--muted2)' }}>{fmtDate(c.created_at)}</span>
-                      </div>
-                      <p style={{ fontSize: '.84rem', lineHeight: 1.6, color: '#ccc6bc', fontWeight: 300 }}>{c.text}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <CommentForm policyId={p.id} />
-            </div>
+            )}
           </div>
 
-          {/* ── RIGHT: sidebar ── */}
-          <div style={{ padding: '1.5rem 1.25rem' }}>
+          <hr className="divider" style={{ margin: 0 }} />
 
-            {/* Admin admin ratings */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '1.1rem', marginBottom: '.75rem' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--muted)', marginBottom: '.85rem', paddingBottom: '.5rem', borderBottom: '1px solid var(--border)' }}>
-                Pre-Written Metrics <span style={{ color: 'var(--muted2)', fontWeight: 300 }}>· Design &amp; Intent</span>
-              </div>
-              {PRE_METRICS.map(m => (
-                <RatingCard key={m.key} label={m.label} desc={m.desc}
-                  value={((p.pre_ratings as unknown) as Record<string,number|null>)?.[m.key] ?? null} />
-              ))}
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--muted)', margin: '1rem 0 .85rem', paddingTop: '.75rem', borderTop: '1px solid var(--border)' }}>
-                Post-Written Metrics <span style={{ color: 'var(--muted2)', fontWeight: 300 }}>· Execution &amp; Reality</span>
-              </div>
-              {POST_METRICS.map(m => (
-                <RatingCard key={m.key} label={m.label} desc={m.desc}
-                  value={((p.post_ratings as unknown) as Record<string,number|null>)?.[m.key] ?? null} />
-              ))}
-            </div>
+          {/* Content sections */}
+          {policy.intro && <Section label="Overview" content={policy.intro} />}
+          {policy.background && <Section label="Background" content={policy.background} />}
+          {policy.keydetails && <Section label="Key Details" content={policy.keydetails} />}
+          {policy.timeline && <Section label="Timeline" content={policy.timeline} />}
+          {policy.structure && <Section label="Structure" content={policy.structure} />}
+          {policy.outcome && <Section label="Outcome" content={policy.outcome} />}
 
-            {/* Community ratings summary */}
-            {agg && (
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '1.1rem', marginBottom: '.75rem' }}>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--muted)', marginBottom: '.75rem', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Community Ratings</span>
-                  <span style={{ color: 'var(--gold)' }}>{agg.count} voter{agg.count !== 1 ? 's' : ''}</span>
-                </div>
-                {[...PRE_METRICS, ...POST_METRICS].map(m => (
-                  <RatingCard key={m.key} label={m.label} desc="" value={agg.avgs[m.key] ?? null} />
+          {/* Finance */}
+          {policy.finance && Object.keys(policy.finance).length > 0 && (
+            <FinanceBlock finance={policy.finance} />
+          )}
+
+          {/* Refs */}
+          {policy.refs?.length > 0 && (
+            <section>
+              <div className="section-label">References</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {policy.refs.map((ref, i) => (
+                  <a
+                    key={i}
+                    href={ref.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: '0.875rem',
+                      color: 'var(--accent)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                    }}
+                  >
+                    ↗ {ref.label}
+                  </a>
                 ))}
               </div>
-            )}
+            </section>
+          )}
 
-            {/* Finance block */}
-            {p.finance?.totalAmount && (
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '1.1rem', marginBottom: '.75rem' }}>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--muted)', marginBottom: '.75rem' }}>
-                  Finance
+          <hr className="divider" style={{ margin: 0 }} />
+
+          {/* Community ratings */}
+          <RatingForm policyId={policy.id} existingRatings={ratings} />
+
+          <hr className="divider" style={{ margin: 0 }} />
+
+          {/* Comments */}
+          <CommentForm policyId={policy.id} initialComments={comments} />
+        </div>
+
+        {/* Sidebar */}
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Admin ratings */}
+          {(hasPreRatings || hasPostRatings) && (
+            <div className="card">
+              <div className="section-label">Admin Ratings</div>
+              {hasPreRatings && (
+                <div style={{ marginBottom: hasPostRatings ? '1.25rem' : 0 }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-3)', marginBottom: '0.625rem' }}>
+                    PRE-IMPLEMENTATION
+                  </div>
+                  {RATING_DIMENSIONS.map(dim => {
+                    const val = (preRatings as Record<string, number>)[dim];
+                    return typeof val === 'number' ? <RatingBar key={dim} label={dim} value={val} /> : null;
+                  })}
                 </div>
-                <div className="finance-amount-label">Total Amount</div>
-                <div className="finance-amount">{p.finance.totalAmount}</div>
-                {p.finance.source && (
-                  <div className="finance-row" style={{ marginTop: '.75rem' }}>
-                    <span className="finance-row-label">Source</span>
-                    <span className="finance-row-value">{p.finance.source}</span>
+              )}
+              {hasPostRatings && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-3)', marginBottom: '0.625rem' }}>
+                    POST-IMPLEMENTATION
                   </div>
-                )}
-                {p.finance.sourceDetail && (
-                  <div className="finance-row">
-                    <span className="finance-row-label">Detail</span>
-                    <span className="finance-row-value">{p.finance.sourceDetail}</span>
-                  </div>
-                )}
-                {p.finance.donor && (
-                  <div className="finance-row">
-                    <span className="finance-row-label">Donor</span>
-                    <span className="finance-row-value">{p.finance.donor}</span>
-                  </div>
-                )}
-                {p.finance.disbursed && (
-                  <div className="finance-row">
-                    <span className="finance-row-label">Disbursed</span>
-                    <span className="finance-row-value">{p.finance.disbursed}</span>
-                  </div>
-                )}
-                {p.finance.loan && (
-                  <div className="finance-row">
-                    <span className="finance-row-label">Loan Terms</span>
-                    <span className="finance-row-value">{p.finance.loan}</span>
-                  </div>
-                )}
-                {p.finance.grant && (
-                  <div className="finance-row">
-                    <span className="finance-row-label">Grant</span>
-                    <span className="finance-row-value">{p.finance.grant}</span>
-                  </div>
-                )}
-                {p.finance.partnership && (
-                  <div className="finance-row">
-                    <span className="finance-row-label">PPP</span>
-                    <span className="finance-row-value">{p.finance.partnership}</span>
-                  </div>
-                )}
-                {p.finance.notes && (
-                  <div className="finance-row">
-                    <span className="finance-row-label">Notes</span>
-                    <span className="finance-row-value">{p.finance.notes}</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginTop: '.75rem' }}>
-                  {p.finance.fromPublicPurse && <span className="outcome-badge pending">Public funds</span>}
-                  {p.finance.budgetPublic && <span className="outcome-badge positive">Budget document public</span>}
+                  {RATING_DIMENSIONS.map(dim => {
+                    const val = (postRatings as Record<string, number>)[dim];
+                    return typeof val === 'number' ? <RatingBar key={dim} label={dim} value={val} /> : null;
+                  })}
                 </div>
-                {p.finance.budgetUrl && (
-                  <a href={p.finance.budgetUrl} target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.75rem', padding: '.6rem .75rem', background: 'var(--gold-bg)', border: '1px solid rgba(201,168,76,.25)', color: 'var(--gold)', textDecoration: 'none', fontFamily: 'var(--mono)', fontSize: '.58rem' }}>
-                    ↗ {p.finance.budgetLabel || 'Budget Document'}
-                  </a>
-                )}
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
-            {/* Rating form */}
-            <RatingForm policyId={p.id} />
-
-            {/* Tags */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '1.1rem' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--muted)', marginBottom: '.65rem' }}>Tags</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem' }}>
-                {p.tags.map(t => <span key={t} className={`tag tag-${t}`}>{t}</span>)}
-              </div>
+          {/* Quick facts */}
+          <div className="card">
+            <div className="section-label">Quick Facts</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+              {[
+                ['Category', policy.category],
+                ['Sponsor', policy.sponsor],
+                ['Party', policy.party],
+                ['Date', policy.date ? new Date(policy.date).toLocaleDateString('en-GB') : null],
+                ['Status', policy.status],
+                ['Outcome', policy.outcome_status],
+              ].filter(([, v]) => v).map(([k, v]) => (
+                <div key={k as string} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-3)' }}>{k}</span>
+                  <span style={{ color: 'var(--text)', fontWeight: 500, textAlign: 'right' }}>{v}</span>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      </main>
-      <Footer />
+        </aside>
+      </div>
 
       <style>{`
-        @media(max-width:768px){
-          main > div { grid-template-columns: 1fr !important; }
-          main > div > div:last-child { border-right: none !important; order: -1; }
+        @media (max-width: 768px) {
+          .policy-detail-grid {
+            grid-template-columns: 1fr !important;
+          }
         }
       `}</style>
-    </>
-  )
+    </div>
+  );
 }
