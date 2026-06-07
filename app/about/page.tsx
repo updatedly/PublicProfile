@@ -109,7 +109,7 @@ export default function AboutPage() {
         {/* Editorial */}
         <div style={{ ...section, borderBottom: 'none' }}>
           <h2 style={h2}>Editorial Principles</h2>
-          <p style={body}>Public Profile does not advocate for or against any political party. Every entry is documented factually, sourced from public records, official documents, and credible journalism. Where facts are disputed, both positions are noted. Ratings reflect the editorial team's research-based assessment, not political opinion.</p>
+          <p style={body}>Public Profile does not advocate for or against any political party. Every entry is documented factually, sourced from public records, official documents, and credible journalism. Where facts are disputed, both positions are noted. Ratings reflect the editorial team&apos;s research-based assessment, not political opinion.</p>
           <p style={body}>All community comments are open for posting without registration. They represent individual views and do not reflect the position of Updatedly.</p>
         </div>
       </main>

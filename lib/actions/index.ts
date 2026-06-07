@@ -2,7 +2,48 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '../supabase/server'
-import type { Policy, Entity } from '../types'
+import type { MediaLink } from '../types'
+
+function optionalText(value: FormDataEntryValue | null) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  return text || null
+}
+
+function parseFinance(formData: FormData) {
+  const finance = {
+    totalAmount: optionalText(formData.get('finance_totalAmount')),
+    source: optionalText(formData.get('finance_source')),
+    sourceDetail: optionalText(formData.get('finance_sourceDetail')),
+    donor: optionalText(formData.get('finance_donor')),
+    disbursed: optionalText(formData.get('finance_disbursed')),
+    loan: optionalText(formData.get('finance_loan')),
+    grant: optionalText(formData.get('finance_grant')),
+    partnership: optionalText(formData.get('finance_partnership')),
+    notes: optionalText(formData.get('finance_notes')),
+    fromPublicPurse: formData.get('finance_fromPublicPurse') === 'on',
+    budgetPublic: formData.get('finance_budgetPublic') === 'on',
+    budgetUrl: optionalText(formData.get('finance_budgetUrl')),
+    budgetLabel: optionalText(formData.get('finance_budgetLabel')),
+  }
+
+  return Object.values(finance).some(value => value) ? finance : null
+}
+
+function parseMediaLinks(raw: FormDataEntryValue | null): MediaLink[] {
+  if (typeof raw !== 'string') return []
+  const allowedTypes = ['article', 'video', 'statement', 'press', 'other'] as const
+
+  return raw
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const [type = 'article', title = '', source = '', date = '', url = ''] = line.split('|').map(part => part.trim())
+      const safeType = allowedTypes.includes(type as MediaLink['type']) ? type as MediaLink['type'] : 'other'
+      return { type: safeType, title, source, date: date || null, url }
+    })
+    .filter(link => link.title && link.url)
+}
 
 // ─── COMMENTS (public — no auth required) ───────────────────
 
@@ -141,7 +182,7 @@ export async function createPolicy(formData: FormData) {
     post_ratings:   postRatings,
     likes:          0,
     refs:           [],
-    finance:        null,
+    finance:        parseFinance(formData),
   }
 
   if (!row.title) return { error: 'Title is required.' }
@@ -194,6 +235,7 @@ export async function updatePolicy(id: string, formData: FormData) {
     outcome_status: (formData.get('outcome_status') as string) || 'pending',
     pre_ratings:    preRatings,
     post_ratings:   postRatings,
+    finance:        parseFinance(formData),
   }
 
   const { error } = await supabase.from('policies').update(row).eq('id', id)
@@ -259,7 +301,7 @@ export async function createEntity(formData: FormData) {
     background:      (formData.get('background') as string)?.trim() || '',
     timeline:        (formData.get('timeline') as string)?.trim() || '',
     photos,
-    media_links:     [],
+    media_links:     parseMediaLinks(formData.get('media_links')),
     linked_policies: [],
     updates:         [],
     budget:          (formData.get('budget') as string)?.trim() || null,
@@ -301,6 +343,7 @@ export async function updateEntity(id: string, formData: FormData) {
     background: (formData.get('background') as string)?.trim() || '',
     timeline: (formData.get('timeline') as string)?.trim() || '',
     photos,
+    media_links: parseMediaLinks(formData.get('media_links')),
     budget:   (formData.get('budget') as string)?.trim() || null,
     website:  (formData.get('website') as string)?.trim() || null,
   }

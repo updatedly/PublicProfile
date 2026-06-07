@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useTransition, useRef } from 'react'
 import Link from 'next/link'
+import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import {
   createPolicy, updatePolicy, deletePolicy, publishPolicy, archivePolicy,
@@ -26,9 +27,18 @@ const sHead  = { fontFamily: 'var(--mono)', fontSize: '.55rem', textTransform: '
 // ─── Main component ──────────────────────────────────────────
 export default function AdminPage() {
   const supabase = createClient()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [checking, setChecking] = useState(true)
   const [tab, setTab]             = useState<Tab>('hub')
+  const [policies, setPolicies]   = useState<Policy[]>([])
+  const [entities, setEntities]   = useState<Entity[]>([])
+  const [editPolicy, setEditPolicy] = useState<Policy | null>(null)
+  const [editEntity, setEditEntity] = useState<Entity | null>(null)
+  const [hubFilter, setHubFilter] = useState('all')
+  const [loading, setLoading]     = useState(true)
+  const [message, setMessage]     = useState<{ type:'ok'|'err'; text:string } | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const adminId = process.env.NEXT_PUBLIC_ADMIN_USER_ID
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -37,13 +47,16 @@ export default function AdminPage() {
     })
   }, [])
 
+  useEffect(() => {
+    if (!checking && user?.id === adminId) loadAll()
+  }, [checking, user?.id, adminId])
+
   if (checking) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontFamily: 'var(--mono)', color: 'var(--muted)' }}>
       Checking access…
     </div>
   )
 
-  const adminId = process.env.NEXT_PUBLIC_ADMIN_USER_ID
   if (!user || user.id !== adminId) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
       <div style={{ textAlign: 'center' }}>
@@ -55,16 +68,6 @@ export default function AdminPage() {
       </div>
     </div>
   )
-  const [policies, setPolicies]   = useState<Policy[]>([])
-  const [entities, setEntities]   = useState<Entity[]>([])
-  const [editPolicy, setEditPolicy] = useState<Policy | null>(null)
-  const [editEntity, setEditEntity] = useState<Entity | null>(null)
-  const [hubFilter, setHubFilter] = useState('all')
-  const [loading, setLoading]     = useState(true)
-  const [message, setMessage]     = useState<{ type:'ok'|'err'; text:string } | null>(null)
-  const [isPending, startTransition] = useTransition()
-
-  useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
@@ -411,6 +414,45 @@ function PolicyForm({ policy: p, onSaved, onError, isPending, startTransition }:
         {textarea('keydetails', '3 · Key Details (separate points with periods)', 4, p?.keydetails)}
         {textarea('timeline',   '4 · Timeline (YYYY-MM-DD | Event, one per line)', 5, p?.timeline)}
         {textarea('structure',  '5 · Cost Structure & Finance', 3, p?.structure)}
+
+        <div style={{ marginTop: '1rem', marginBottom: '1rem', fontFamily: 'var(--mono)', fontSize: '.56rem', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--gold)', paddingTop: '.75rem', borderTop: '1px solid var(--border)' }}>
+          Finance Breakdown
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+          {field('finance_totalAmount', 'Total Amount', p?.finance?.totalAmount)}
+          <div style={{ marginBottom: '.85rem' }}>
+            <label className="field-label">Funding Source Type</label>
+            <select name="finance_source" className="field-input" defaultValue={p?.finance?.source ?? ''}>
+              <option value="">- Not specified -</option>
+              <option value="Public purse">Public purse</option>
+              <option value="External">External</option>
+              <option value="Donor">Donor</option>
+              <option value="Grant">Grant</option>
+              <option value="Loan">Loan</option>
+              <option value="PPP">PPP</option>
+            </select>
+          </div>
+          {field('finance_sourceDetail', 'Source Detail', p?.finance?.sourceDetail)}
+          {field('finance_donor', 'Donor / Partner Name', p?.finance?.donor)}
+          {field('finance_disbursed', 'Amount Disbursed', p?.finance?.disbursed)}
+          {field('finance_budgetLabel', 'Budget Document Label', p?.finance?.budgetLabel)}
+        </div>
+        {textarea('finance_loan', 'Loan Terms', 2, p?.finance?.loan)}
+        {textarea('finance_grant', 'Grant Details', 2, p?.finance?.grant)}
+        {textarea('finance_partnership', 'PPP / Partnership Notes', 2, p?.finance?.partnership)}
+        {textarea('finance_notes', 'Finance Notes', 2, p?.finance?.notes)}
+        {field('finance_budgetUrl', 'Budget Document URL', p?.finance?.budgetUrl)}
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '.85rem' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontFamily: 'var(--mono)', fontSize: '.62rem', color: 'var(--muted)' }}>
+            <input name="finance_fromPublicPurse" type="checkbox" defaultChecked={Boolean(p?.finance?.fromPublicPurse)} />
+            Uses public funds
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem', fontFamily: 'var(--mono)', fontSize: '.62rem', color: 'var(--muted)' }}>
+            <input name="finance_budgetPublic" type="checkbox" defaultChecked={Boolean(p?.finance?.budgetPublic)} />
+            Public budget document exists
+          </label>
+        </div>
+
         {textarea('outcome',    '6 · Outcome', 3, p?.outcome)}
 
         {/* Pre-ratings */}
@@ -531,6 +573,17 @@ function EntityForm({ entity: e, onSaved, onError, isPending, startTransition }:
         <div style={{ marginBottom: '.85rem' }}>
           <label className="field-label">Photos (one URL per line)</label>
           <textarea name="photos" className="field-input" rows={3} style={{ resize: 'vertical' }} defaultValue={(e?.photos ?? []).join('\n')} placeholder="https://example.com/photo.jpg" />
+        </div>
+        <div style={{ marginBottom: '.85rem' }}>
+          <label className="field-label">Media Links (type | title | source | date | url)</label>
+          <textarea
+            name="media_links"
+            className="field-input"
+            rows={4}
+            style={{ resize: 'vertical' }}
+            defaultValue={(e?.media_links ?? []).map(m => `${m.type} | ${m.title} | ${m.source} | ${m.date ?? ''} | ${m.url}`).join('\n')}
+            placeholder="article | Headline | Source | 2026-01-01 | https://example.com/story"
+          />
         </div>
         {field('budget',  'Budget / Resources', e?.budget)}
       </form>

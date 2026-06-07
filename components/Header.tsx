@@ -1,6 +1,25 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
 export default function Header() {
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window === 'undefined') return 'dark'
+    return window.localStorage.getItem('pp-theme') === 'light' ? 'light' : 'dark'
+  })
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', theme === 'light')
+  }, [theme])
+
+  function toggleTheme() {
+    const nextTheme = theme === 'light' ? 'dark' : 'light'
+    setTheme(nextTheme)
+    window.localStorage.setItem('pp-theme', nextTheme)
+    document.documentElement.classList.toggle('light', nextTheme === 'light')
+  }
+
   return (
     <header style={{
       borderBottom: '1px solid var(--border)',
@@ -50,6 +69,28 @@ export default function Header() {
             borderRadius: 'var(--radius)',
           }}>Admin</span>
         </Link>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          style={{
+            width: 30,
+            height: 30,
+            border: '1px solid var(--border2)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--surface)',
+            color: 'var(--gold)',
+            cursor: 'pointer',
+            fontFamily: 'var(--mono)',
+            fontSize: '.78rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {theme === 'light' ? 'D' : 'L'}
+        </button>
       </nav>
 
       <style>{`

@@ -272,12 +272,52 @@ export default async function PolicyPage({ params }: Props) {
                     <span className="finance-row-value">{p.finance.source}</span>
                   </div>
                 )}
+                {p.finance.sourceDetail && (
+                  <div className="finance-row">
+                    <span className="finance-row-label">Detail</span>
+                    <span className="finance-row-value">{p.finance.sourceDetail}</span>
+                  </div>
+                )}
                 {p.finance.donor && (
                   <div className="finance-row">
                     <span className="finance-row-label">Donor</span>
                     <span className="finance-row-value">{p.finance.donor}</span>
                   </div>
                 )}
+                {p.finance.disbursed && (
+                  <div className="finance-row">
+                    <span className="finance-row-label">Disbursed</span>
+                    <span className="finance-row-value">{p.finance.disbursed}</span>
+                  </div>
+                )}
+                {p.finance.loan && (
+                  <div className="finance-row">
+                    <span className="finance-row-label">Loan Terms</span>
+                    <span className="finance-row-value">{p.finance.loan}</span>
+                  </div>
+                )}
+                {p.finance.grant && (
+                  <div className="finance-row">
+                    <span className="finance-row-label">Grant</span>
+                    <span className="finance-row-value">{p.finance.grant}</span>
+                  </div>
+                )}
+                {p.finance.partnership && (
+                  <div className="finance-row">
+                    <span className="finance-row-label">PPP</span>
+                    <span className="finance-row-value">{p.finance.partnership}</span>
+                  </div>
+                )}
+                {p.finance.notes && (
+                  <div className="finance-row">
+                    <span className="finance-row-label">Notes</span>
+                    <span className="finance-row-value">{p.finance.notes}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginTop: '.75rem' }}>
+                  {p.finance.fromPublicPurse && <span className="outcome-badge pending">Public funds</span>}
+                  {p.finance.budgetPublic && <span className="outcome-badge positive">Budget document public</span>}
+                </div>
                 {p.finance.budgetUrl && (
                   <a href={p.finance.budgetUrl} target="_blank" rel="noopener noreferrer"
                     style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.75rem', padding: '.6rem .75rem', background: 'var(--gold-bg)', border: '1px solid rgba(201,168,76,.25)', color: 'var(--gold)', textDecoration: 'none', fontFamily: 'var(--mono)', fontSize: '.58rem' }}>
