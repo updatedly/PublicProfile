@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Rating, RatingDimensions } from '@/lib/types';
 import { RATING_DIMENSIONS, RATING_DIMENSION_DESCRIPTIONS } from '@/lib/types';
 import { submitRating } from '@/lib/actions';
@@ -24,7 +24,7 @@ function StarInput({ value, onChange }: { value: number; onChange: (v: number) =
           style={{ color: star <= (hover || value) ? 'var(--accent)' : 'var(--border-2)' }}
           onMouseEnter={() => setHover(star)}
           onMouseLeave={() => setHover(0)}
-          onClick={() => onChange(star * 2)} // map 1-5 → 2-10
+          onClick={() => onChange(star * 2)}
         >
           ★
         </button>
@@ -52,20 +52,18 @@ export function RatingForm({ policyId, existingRatings }: RatingFormProps) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // Check auth on mount
-  useState(() => {
+  useEffect(() => {
     (async () => {
       const supabase = createClient();
       const { data: { user: u } } = await supabase.auth.getUser();
       if (u) {
         setUser({ id: u.id, email: u.email!, name: u.user_metadata?.full_name ?? u.email! });
-        // Load existing rating for this user
         const existing = existingRatings.find(r => r.user_email === u.email);
         if (existing) setMyRatings(existing.ratings as Record<string, number>);
       }
       setUserChecked(true);
     })();
-  });
+  }, [existingRatings]);
 
   const handleSignIn = async () => {
     const supabase = createClient();
@@ -107,7 +105,6 @@ export function RatingForm({ policyId, existingRatings }: RatingFormProps) {
         )}
       </div>
 
-      {/* Community averages display */}
       {communityCount > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
           {RATING_DIMENSIONS.map(dim => {
@@ -129,23 +126,14 @@ export function RatingForm({ policyId, existingRatings }: RatingFormProps) {
         </div>
       )}
 
-      {/* Rating input */}
       {!userChecked ? (
         <div style={{ color: 'var(--text-3)', fontSize: '0.875rem' }}>Loading…</div>
       ) : !user ? (
-        <div style={{
-          background: 'var(--bg-3)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '1.25rem',
-          textAlign: 'center',
-        }}>
+        <div style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem', textAlign: 'center' }}>
           <p style={{ color: 'var(--text-2)', fontSize: '0.875rem', marginBottom: '0.875rem' }}>
             Sign in to rate this policy across 8 dimensions.
           </p>
-          <button onClick={handleSignIn} className="btn btn-primary">
-            Sign in with Google
-          </button>
+          <button onClick={handleSignIn} className="btn btn-primary">Sign in with Google</button>
         </div>
       ) : (
         <div style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem' }}>
@@ -159,9 +147,7 @@ export function RatingForm({ policyId, existingRatings }: RatingFormProps) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.25rem' }}>
             {RATING_DIMENSIONS.map(dim => (
               <div key={dim}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text)' }}>{dim}</label>
-                </div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text)', display: 'block', marginBottom: '0.2rem' }}>{dim}</label>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: '0.4rem' }}>
                   {RATING_DIMENSION_DESCRIPTIONS[dim]}
                 </p>

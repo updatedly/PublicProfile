@@ -1,17 +1,10 @@
-'use client';
-
+// Server component - no 'use client' - inlines raw <script> tag to prevent theme flash
 export function ThemeScript() {
-  const script = `
-    (function() {
-      try {
-        var theme = localStorage.getItem('pp-theme') || 'dark';
-        if (theme === 'light') {
-          document.documentElement.classList.add('light');
-        } else {
-          document.documentElement.classList.remove('light');
-        }
-      } catch(e) {}
-    })();
-  `;
-  return <script dangerouslySetInnerHTML={{ __html: script }} />;
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `(function(){try{var t=localStorage.getItem('pp-theme');if(t==='light'){document.documentElement.classList.add('light')}else{document.documentElement.classList.remove('light')}}catch(e){}})();`,
+      }}
+    />
+  );
 }
