@@ -1,43 +1,16 @@
-import Link from 'next/link';
-
 export function Footer() {
   return (
-    <footer style={{
-      background: 'var(--bg-2)',
-      borderTop: '1px solid var(--border)',
-      padding: '2rem 0',
-      marginTop: '4rem',
-    }}>
-      <div className="container" style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', justifyContent: 'space-between', alignItems: 'center' }}>
+    <footer>
+      <div className="footer-inner">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{
-              background: 'var(--accent)',
-              color: '#0a0a0b',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: '0.7rem',
-              padding: '0.2em 0.45em',
-              borderRadius: '3px',
-            }}>PP</span>
-            <span style={{ fontWeight: 700, color: 'var(--text)' }}>Public Profile</span>
-          </div>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-3)', maxWidth: '300px' }}>
-            An Updatedly initiative tracking government policies and public officials in Ghana.
-          </p>
+          <div className="footer-logo">Public <span>Profile</span></div>
+          <div className="footer-copy">© 2024–2026 · An Updatedely Initiative</div>
         </div>
-
-        <nav style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
-          {[['/', 'Policies'], ['/officials', 'Officials'], ['/about', 'About'], ['/admin', 'Admin']].map(([href, label]) => (
-            <Link key={href} href={href} style={{ color: 'var(--text-3)', fontSize: '0.85rem', textDecoration: 'none' }}>
-              {label}
-            </Link>
-          ))}
-        </nav>
-
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>
-          © {new Date().getFullYear()} Updatedly. For informational purposes.
-        </p>
+        <a className="yt-link" href="https://youtube.com/@updatedlyinc" target="_blank" rel="noopener">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.7 15.5V8.5l6.3 3.5-6.3 3.5z"/></svg>
+          Updatedely on YouTube
+        </a>
+        <div className="footer-desc">Simplified breakdowns of Ghanaian &amp; African politics, economics, and governance — maps, rates, and explains what it means for you.</div>
       </div>
     </footer>
   );

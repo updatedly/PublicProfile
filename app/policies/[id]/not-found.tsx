@@ -1,12 +1,10 @@
 import Link from 'next/link';
-
 export default function NotFound() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '1rem', textAlign: 'center', padding: '2rem' }}>
-      <div style={{ fontSize: '3rem' }}>📭</div>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Policy Not Found</h1>
-      <p style={{ color: 'var(--text-2)', maxWidth: '360px' }}>This policy doesn't exist or has been removed.</p>
-      <Link href="/" className="btn btn-primary">← Back to Policies</Link>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'70vh', gap:'1rem', textAlign:'center' }}>
+      <div style={{ fontFamily:'var(--display)', fontSize:'3rem', fontWeight:900, color:'var(--gold)' }}>404</div>
+      <h1 style={{ fontFamily:'var(--display)', fontSize:'1.4rem', fontWeight:700 }}>Policy Not Found</h1>
+      <Link href="/" className="btn-primary">← Back to Tracker</Link>
     </div>
   );
 }

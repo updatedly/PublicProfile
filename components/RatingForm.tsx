@@ -1,176 +1,136 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-import type { Rating, RatingDimensions } from '@/lib/types';
-import { RATING_DIMENSIONS, RATING_DIMENSION_DESCRIPTIONS } from '@/lib/types';
+import type { Rating } from '@/lib/types';
 import { submitRating } from '@/lib/actions';
 import { createClient } from '@/lib/supabase/client';
 
-interface RatingFormProps {
-  policyId: string;
-  existingRatings: Rating[];
-}
+const DIMS = [
+  { key:'transparency',    label:'Transparency' },
+  { key:'representation',  label:'Representation' },
+  { key:'justification',   label:'Justification' },
+  { key:'readiness',       label:'Readiness' },
+  { key:'effectiveness',   label:'Effectiveness' },
+  { key:'ux',              label:'User Experience' },
+  { key:'equity',          label:'Equity' },
+  { key:'cost',            label:'Cost-Efficiency' },
+];
 
-function StarInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function StarRow({ value, onChange }: { value: number; onChange:(v:number)=>void }) {
   const [hover, setHover] = useState(0);
+  const stars = Math.round((hover||value)/2);
   return (
-    <div className="star-row" role="radiogroup">
-      {[1, 2, 3, 4, 5].map(star => (
-        <button
-          key={star}
-          type="button"
-          className="star-btn"
-          aria-label={`${star} star`}
-          style={{ color: star <= (hover || value) ? 'var(--accent)' : 'var(--border-2)' }}
-          onMouseEnter={() => setHover(star)}
+    <div style={{ display:'flex', gap:'.15rem' }}>
+      {[1,2,3,4,5].map(s => (
+        <button key={s} type="button"
+          style={{ background:'none', border:'none', cursor:'pointer', fontSize:'1.1rem', padding:'.05rem', color: s<=stars ? 'var(--gold)' : 'var(--border2)', transition:'color .1s' }}
+          onMouseEnter={() => setHover(s*2)}
           onMouseLeave={() => setHover(0)}
-          onClick={() => onChange(star * 2)}
-        >
-          ★
-        </button>
+          onClick={() => onChange(s*2)}
+        >★</button>
       ))}
-      {value > 0 && (
-        <span style={{ fontSize: '0.75rem', color: 'var(--text-3)', alignSelf: 'center', marginLeft: '0.25rem', fontFamily: 'var(--font-mono)' }}>
-          {value}/10
-        </span>
-      )}
+      {value>0 && <span style={{ fontFamily:'var(--mono)', fontSize:'.6rem', color:'var(--muted)', alignSelf:'center', marginLeft:'.25rem' }}>{value}/10</span>}
     </div>
   );
 }
 
-function avgDimension(ratings: Rating[], dim: string): number | null {
-  const vals = ratings.map(r => (r.ratings as Record<string, number>)[dim]).filter(v => typeof v === 'number');
-  if (!vals.length) return null;
-  return vals.reduce((a, b) => a + b, 0) / vals.length;
+function avgDim(ratings: Rating[], dim: string): number|null {
+  const vals = ratings.map(r => (r.ratings as Record<string,number>)[dim]).filter(v=>typeof v==='number');
+  return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
 }
 
-export function RatingForm({ policyId, existingRatings }: RatingFormProps) {
-  const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null);
-  const [userChecked, setUserChecked] = useState(false);
-  const [myRatings, setMyRatings] = useState<Record<string, number>>({});
+export function RatingForm({ policyId, existingRatings }: { policyId:string; existingRatings:Rating[] }) {
+  const [user, setUser] = useState<{id:string;email:string;name:string}|null>(null);
+  const [checked, setChecked] = useState(false);
+  const [mine, setMine] = useState<Record<string,number>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     (async () => {
-      const supabase = createClient();
-      const { data: { user: u } } = await supabase.auth.getUser();
+      const sb = createClient();
+      const { data:{ user:u } } = await sb.auth.getUser();
       if (u) {
-        setUser({ id: u.id, email: u.email!, name: u.user_metadata?.full_name ?? u.email! });
-        const existing = existingRatings.find(r => r.user_email === u.email);
-        if (existing) setMyRatings(existing.ratings as Record<string, number>);
+        setUser({ id:u.id, email:u.email!, name:u.user_metadata?.full_name??u.email! });
+        const ex = existingRatings.find(r => r.user_email===u.email);
+        if (ex) setMine(ex.ratings as Record<string,number>);
       }
-      setUserChecked(true);
+      setChecked(true);
     })();
   }, [existingRatings]);
 
-  const handleSignIn = async () => {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.href },
-    });
+  const signIn = async () => {
+    const sb = createClient();
+    await sb.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: window.location.href } });
   };
 
-  const handleSubmit = async () => {
+  const submit = async () => {
     if (!user) return;
-    setSaving(true);
-    setError('');
+    setSaving(true); setError('');
     try {
-      await submitRating({
-        policy_id: policyId,
-        user_id: user.id,
-        user_email: user.email,
-        ratings: myRatings,
-      });
+      await submitRating({ policy_id: policyId, user_id: user.id, user_email: user.email, ratings: mine });
       setSaved(true);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save rating.');
-    } finally {
-      setSaving(false);
-    }
+    } catch (e:unknown) { setError(e instanceof Error ? e.message : 'Failed.'); }
+    finally { setSaving(false); }
   };
 
-  const communityCount = existingRatings.length;
+  const count = existingRatings.length;
 
   return (
-    <section>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div className="section-label" style={{ marginBottom: 0 }}>Community Ratings</div>
-        {communityCount > 0 && (
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>
-            {communityCount} {communityCount === 1 ? 'rating' : 'ratings'}
-          </span>
-        )}
+    <div className="rating-card">
+      <div className="rc-head">
+        Community Ratings {count>0 && <span style={{ color:'var(--muted2)' }}>· {count} {count===1?'rating':'ratings'}</span>}
       </div>
 
-      {communityCount > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
-          {RATING_DIMENSIONS.map(dim => {
-            const avg = avgDimension(existingRatings, dim);
-            if (avg === null) return null;
-            const pct = (avg / 10) * 100;
+      {/* Community averages */}
+      {count>0 && (
+        <div style={{ marginBottom:'1rem' }}>
+          {DIMS.map(({key,label}) => {
+            const avg = avgDim(existingRatings, key);
+            if (avg===null) return null;
+            const cls = avg>=7?'high':avg>=4?'mid':'low';
             return (
-              <div key={dim} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-2)', width: '130px', flexShrink: 0 }}>{dim}</span>
-                <div style={{ flex: 1, height: '6px', background: 'var(--bg-4)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)', borderRadius: '3px', transition: 'width 0.4s ease' }} />
+              <div key={key} className="rc-row">
+                <div className="rc-label-row">
+                  <span className="rc-label">{label}</span>
+                  <span className={`rc-score ${cls}`}>{avg.toFixed(1)}</span>
                 </div>
-                <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--accent)', width: '32px', textAlign: 'right' }}>
-                  {avg.toFixed(1)}
-                </span>
+                <div className="rc-bar">
+                  <div className="rc-fill post-fill" style={{ width:`${avg*10}%` }} />
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
-      {!userChecked ? (
-        <div style={{ color: 'var(--text-3)', fontSize: '0.875rem' }}>Loading…</div>
-      ) : !user ? (
-        <div style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem', textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-2)', fontSize: '0.875rem', marginBottom: '0.875rem' }}>
-            Sign in to rate this policy across 8 dimensions.
+      {!checked ? null : !user ? (
+        <div style={{ textAlign:'center', padding:'.75rem 0' }}>
+          <p style={{ fontSize:'.78rem', color:'var(--muted)', fontWeight:300, marginBottom:'.6rem' }}>
+            Sign in to rate this policy.
           </p>
-          <button onClick={handleSignIn} className="btn btn-primary">Sign in with Google</button>
+          <button onClick={signIn} className="btn-primary btn-sm">Sign in with Google</button>
         </div>
       ) : (
-        <div style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-2)' }}>
-              Rating as <strong style={{ color: 'var(--text)' }}>{user.name}</strong>
-            </span>
-            {saved && <span className="badge badge-positive">Saved ✓</span>}
+        <div>
+          <div style={{ fontSize:'.7rem', fontFamily:'var(--mono)', color:'var(--muted2)', marginBottom:'.75rem' }}>
+            Rating as <span style={{ color:'var(--gold)' }}>{user.name}</span>
+            {saved && <span style={{ marginLeft:'.75rem', color:'var(--green)' }}>✓ Saved</span>}
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.25rem' }}>
-            {RATING_DIMENSIONS.map(dim => (
-              <div key={dim}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text)', display: 'block', marginBottom: '0.2rem' }}>{dim}</label>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: '0.4rem' }}>
-                  {RATING_DIMENSION_DESCRIPTIONS[dim]}
-                </p>
-                <StarInput
-                  value={(myRatings[dim] ?? 0) / 2}
-                  onChange={v => setMyRatings(prev => ({ ...prev, [dim]: v }))}
-                />
+          {DIMS.map(({key,label}) => (
+            <div key={key} style={{ marginBottom:'.75rem' }}>
+              <div style={{ fontFamily:'var(--mono)', fontSize:'.58rem', textTransform:'uppercase', letterSpacing:'.06em', color:'var(--text)', marginBottom:'.25rem' }}>
+                {label}
               </div>
-            ))}
-          </div>
-
-          {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
-
-          <button
-            onClick={handleSubmit}
-            disabled={saving || Object.keys(myRatings).length === 0}
-            className="btn btn-primary"
-            style={{ width: '100%' }}
-          >
-            {saving ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Saving…</> : saved ? 'Update Rating' : 'Submit Rating'}
+              <StarRow value={(mine[key]??0)} onChange={v => setMine(p=>({...p,[key]:v}))} />
+            </div>
+          ))}
+          {error && <div style={{ color:'#e74c3c', fontSize:'.72rem', marginBottom:'.5rem', fontFamily:'var(--mono)' }}>{error}</div>}
+          <button onClick={submit} disabled={saving||Object.keys(mine).length===0} className="btn-primary btn-sm" style={{ width:'100%', marginTop:'.5rem', justifyContent:'center' }}>
+            {saving ? 'Saving…' : saved ? 'Update Rating' : 'Submit Rating'}
           </button>
         </div>
       )}
-    </section>
+    </div>
   );
 }

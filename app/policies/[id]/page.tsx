@@ -1,242 +1,211 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { getPolicy, getTags, getComments, getRatings } from '@/lib/queries';
 import { TagChip } from '@/components/TagChip';
 import { FinanceBlock } from '@/components/FinanceBlock';
 import { RatingForm } from '@/components/RatingForm';
 import { CommentForm } from '@/components/CommentForm';
+import { Footer } from '@/components/Footer';
 import type { RatingDimensions } from '@/lib/types';
-import { RATING_DIMENSIONS } from '@/lib/types';
 
 export const revalidate = 60;
-
 interface Props { params: Promise<{ id: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const policy = await getPolicy(id);
-  if (!policy) return { title: 'Policy Not Found' };
-  return {
-    title: `${policy.title} — Public Profile`,
-    description: policy.intro?.slice(0, 160),
-  };
+  const p = await getPolicy(id);
+  if (!p) return { title: 'Not Found' };
+  return { title: `${p.title} — Public Profile`, description: p.intro?.slice(0,160) };
 }
 
-function RatingBar({ label, value, max = 10 }: { label: string; value: number; max?: number }) {
+const RATING_LABELS: Record<string,string> = {
+  transparency:'Transparency', representation:'Representation', justification:'Justification',
+  readiness:'Readiness', effectiveness:'Effectiveness', ux:'User Experience', equity:'Equity', cost:'Cost-Efficiency',
+};
+
+function scoreClass(v: number) {
+  return v >= 7 ? 'high' : v >= 4 ? 'mid' : 'low';
+}
+
+function RatingCard({ label, ratings, className }: { label: string; ratings: Record<string,number>; className: string }) {
+  const entries = Object.entries(ratings).filter(([,v]) => typeof v === 'number' && v !== null);
+  if (!entries.length) return null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-      <span style={{ fontSize: '0.8rem', color: 'var(--text-2)', width: '130px', flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1, height: '6px', background: 'var(--bg-4)', borderRadius: '3px', overflow: 'hidden' }}>
-        <div style={{ width: `${(value / max) * 100}%`, height: '100%', background: 'var(--accent)', borderRadius: '3px' }} />
-      </div>
-      <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--accent)', width: '32px', textAlign: 'right' }}>
-        {value.toFixed(1)}
-      </span>
+    <div className="rating-card">
+      <div className="rc-head">{label}</div>
+      {entries.map(([k, v]) => (
+        <div key={k} className="rc-row">
+          <div className="rc-label-row">
+            <span className="rc-label">{RATING_LABELS[k] ?? k}</span>
+            <span className={`rc-score ${scoreClass(v)}`}>{v.toFixed(1)}</span>
+          </div>
+          <div className="rc-bar">
+            <div className={`rc-fill ${className}`} style={{ width: `${v*10}%` }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function Section({ label, content }: { label: string; content: string }) {
-  if (!content?.trim()) return null;
+function fmtDate(d: string) {
+  try { return new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); } catch { return d; }
+}
+
+function parseTimeline(raw: string): { date: string; text: string }[] {
+  return raw.split('\n').filter(Boolean).map(line => {
+    const [date, ...rest] = line.split('|');
+    return { date: date?.trim() ?? '', text: rest.join('|').trim() || date.trim() };
+  });
+}
+
+function ChBody({ text }: { text: string }) {
   return (
-    <section>
-      <div className="section-label">{label}</div>
-      <div style={{ fontSize: '0.925rem', color: 'var(--text-2)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
-        {content}
-      </div>
-    </section>
+    <div className="ch-body">
+      {text.split('\n').filter(Boolean).map((p,i) => <p key={i}>{p}</p>)}
+    </div>
   );
 }
 
-export default async function PolicyDetailPage({ params }: Props) {
+export default async function PolicyDetail({ params }: Props) {
   const { id } = await params;
   const [policy, tags, comments, ratings] = await Promise.all([
-    getPolicy(id),
-    getTags(),
-    getComments(id),
-    getRatings(id),
+    getPolicy(id), getTags(), getComments(id), getRatings(id),
   ]);
-
   if (!policy) notFound();
 
-  const preRatings = policy.pre_ratings as RatingDimensions;
-  const postRatings = policy.post_ratings as RatingDimensions;
-  const hasPreRatings = Object.keys(preRatings ?? {}).length > 0;
-  const hasPostRatings = Object.keys(postRatings ?? {}).length > 0;
+  const pre = policy.pre_ratings as Record<string,number> ?? {};
+  const post = policy.post_ratings as Record<string,number> ?? {};
+  const tlItems = policy.timeline ? parseTimeline(policy.timeline) : [];
 
-  const wordCount = [policy.intro, policy.background, policy.keydetails, policy.outcome]
-    .filter(Boolean).join(' ').split(/\s+/).length;
-  const readTime = Math.max(1, Math.ceil(wordCount / 200));
+  const CHAPTERS = [
+    { num: '01', title: 'Overview', body: policy.intro },
+    { num: '02', title: 'Background', body: policy.background },
+    { num: '03', title: 'Key Details', body: policy.keydetails },
+    { num: '04', title: 'Structure & Mechanism', body: policy.structure },
+    { num: '05', title: 'Outcome', body: policy.outcome },
+  ].filter(c => c.body?.trim());
 
   return (
-    <div className="container" style={{ padding: '2rem 1.25rem' }}>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 320px',
-        gap: '2rem',
-        alignItems: 'start',
-      }}
-        className="policy-detail-grid"
-      >
-        {/* Main column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', minWidth: 0 }}>
-          {/* Header */}
-          <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginBottom: '0.875rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {policy.category}
-              </span>
-              <span>·</span>
-              <span className={`badge badge-${policy.outcome_status}`}>
-                {policy.outcome_status.charAt(0).toUpperCase() + policy.outcome_status.slice(1)}
-              </span>
-              <span className={`badge badge-${policy.status}`}>{policy.status}</span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginLeft: 'auto' }}>
-                {readTime} min read
-              </span>
-            </div>
-
-            <h1 style={{ fontSize: 'clamp(1.4rem, 3.5vw, 2rem)', fontWeight: 700, marginBottom: '1rem', lineHeight: 1.25 }}>
-              {policy.title}
-            </h1>
-
-            <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
-              {policy.sponsor && (
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>
-                  <strong>Sponsor:</strong> {policy.sponsor}
+    <>
+      <div className="detail-wrap fade-up">
+        <Link href="/" className="detail-back">← Back to tracker</Link>
+        <div className="detail-grid">
+          {/* MAIN */}
+          <div className="detail-main">
+            <div className="detail-eyebrow">{policy.category}</div>
+            <h1 className="detail-title">{policy.title}</h1>
+            <div className="detail-meta">
+              {policy.sponsor && <div className="meta-block"><span className="meta-label">Sponsor</span><span className="meta-value">{policy.sponsor}</span></div>}
+              {policy.party && <div className="meta-block"><span className="meta-label">Party</span><span className="meta-value">{policy.party}</span></div>}
+              {policy.date && <div className="meta-block"><span className="meta-label">Date</span><span className="meta-value">{fmtDate(policy.date)}</span></div>}
+              <div className="meta-block">
+                <span className="meta-label">Status</span>
+                <span className={`outcome-badge ${policy.outcome_status}`}>
+                  {policy.outcome_status === 'positive' ? '✓' : policy.outcome_status === 'negative' ? '✗' : '○'} {policy.outcome_status}
                 </span>
-              )}
-              {policy.party && (
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>
-                  <strong>Party:</strong> {policy.party}
-                </span>
-              )}
-              {policy.date && (
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>
-                  {new Date(policy.date).toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </span>
-              )}
+              </div>
             </div>
 
             {policy.tags?.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+              <div className="card-tags" style={{ marginBottom:'1.5rem', gap:'.35rem', display:'flex', flexWrap:'wrap' }}>
                 {policy.tags.map(code => <TagChip key={code} code={code} tags={tags} />)}
               </div>
             )}
-          </div>
 
-          <hr className="divider" style={{ margin: 0 }} />
+            {/* Chapters */}
+            <div>
+              {CHAPTERS.map(ch => (
+                <div key={ch.num} className="chapter">
+                  <div className="ch-num">Chapter {ch.num}</div>
+                  <div className="ch-title">{ch.title}</div>
+                  <ChBody text={ch.body!} />
+                </div>
+              ))}
 
-          {/* Content sections */}
-          {policy.intro && <Section label="Overview" content={policy.intro} />}
-          {policy.background && <Section label="Background" content={policy.background} />}
-          {policy.keydetails && <Section label="Key Details" content={policy.keydetails} />}
-          {policy.timeline && <Section label="Timeline" content={policy.timeline} />}
-          {policy.structure && <Section label="Structure" content={policy.structure} />}
-          {policy.outcome && <Section label="Outcome" content={policy.outcome} />}
-
-          {/* Finance */}
-          {policy.finance && Object.keys(policy.finance).length > 0 && (
-            <FinanceBlock finance={policy.finance} />
-          )}
-
-          {/* Refs */}
-          {policy.refs?.length > 0 && (
-            <section>
-              <div className="section-label">References</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {policy.refs.map((ref, i) => (
-                  <a
-                    key={i}
-                    href={ref.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      fontSize: '0.875rem',
-                      color: 'var(--accent)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                    }}
-                  >
-                    ↗ {ref.label}
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <hr className="divider" style={{ margin: 0 }} />
-
-          {/* Community ratings */}
-          <RatingForm policyId={policy.id} existingRatings={ratings} />
-
-          <hr className="divider" style={{ margin: 0 }} />
-
-          {/* Comments */}
-          <CommentForm policyId={policy.id} initialComments={comments} />
-        </div>
-
-        {/* Sidebar */}
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Admin ratings */}
-          {(hasPreRatings || hasPostRatings) && (
-            <div className="card">
-              <div className="section-label">Admin Ratings</div>
-              {hasPreRatings && (
-                <div style={{ marginBottom: hasPostRatings ? '1.25rem' : 0 }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-3)', marginBottom: '0.625rem' }}>
-                    PRE-IMPLEMENTATION
+              {/* Timeline chapter */}
+              {tlItems.length > 0 && (
+                <div className="chapter">
+                  <div className="ch-num">Timeline</div>
+                  <div className="ch-title">Key Events</div>
+                  <div className="tl">
+                    {tlItems.map((item, i) => (
+                      <div key={i} className="tl-item">
+                        <div className="tl-date">{item.date}</div>
+                        <div className="tl-dot" />
+                        <div className="tl-text">{item.text}</div>
+                      </div>
+                    ))}
                   </div>
-                  {RATING_DIMENSIONS.map(dim => {
-                    const val = (preRatings as Record<string, number>)[dim];
-                    return typeof val === 'number' ? <RatingBar key={dim} label={dim} value={val} /> : null;
-                  })}
                 </div>
               )}
-              {hasPostRatings && (
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-3)', marginBottom: '0.625rem' }}>
-                    POST-IMPLEMENTATION
-                  </div>
-                  {RATING_DIMENSIONS.map(dim => {
-                    const val = (postRatings as Record<string, number>)[dim];
-                    return typeof val === 'number' ? <RatingBar key={dim} label={dim} value={val} /> : null;
-                  })}
+
+              {/* Finance */}
+              {policy.finance && Object.keys(policy.finance).length > 0 && (
+                <div className="chapter">
+                  <div className="ch-num">Finance</div>
+                  <div className="ch-title">Financial Accountability</div>
+                  <FinanceBlock finance={policy.finance} />
                 </div>
               )}
             </div>
-          )}
 
-          {/* Quick facts */}
-          <div className="card">
-            <div className="section-label">Quick Facts</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+            {/* Refs */}
+            {policy.refs?.length > 0 && (
+              <div className="refs-section">
+                <div style={{ fontFamily:'var(--mono)', fontSize:'.56rem', textTransform:'uppercase', letterSpacing:'.1em', color:'var(--gold)', marginBottom:'.6rem' }}>
+                  References
+                </div>
+                {policy.refs.map((ref, i) => (
+                  <div key={i} className="ref-item">
+                    <span className="ref-num">[{i+1}]</span>
+                    <div>
+                      <a href={ref.url} className="ref-link" target="_blank" rel="noopener">{ref.label}</a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Comments */}
+            <div className="comments-shell">
+              <div className="comments-title">Discussion</div>
+              <CommentForm policyId={policy.id} initialComments={comments} />
+            </div>
+          </div>
+
+          {/* SIDEBAR */}
+          <div className="detail-sidebar">
+            {/* Ratings */}
+            {Object.keys(pre).length > 0 && (
+              <RatingCard label="Pre-Implementation Ratings" ratings={pre} className="pre-fill" />
+            )}
+            {Object.keys(post).length > 0 && (
+              <RatingCard label="Post-Implementation Ratings" ratings={post} className="post-fill" />
+            )}
+
+            {/* Community ratings */}
+            <RatingForm policyId={policy.id} existingRatings={ratings} />
+
+            {/* Quick facts */}
+            <div className="rating-card" style={{ marginTop:'.75rem' }}>
+              <div className="rc-head">Quick Facts</div>
               {[
                 ['Category', policy.category],
-                ['Sponsor', policy.sponsor],
                 ['Party', policy.party],
-                ['Date', policy.date ? new Date(policy.date).toLocaleDateString('en-GB') : null],
                 ['Status', policy.status],
-                ['Outcome', policy.outcome_status],
-              ].filter(([, v]) => v).map(([k, v]) => (
-                <div key={k as string} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-3)' }}>{k}</span>
-                  <span style={{ color: 'var(--text)', fontWeight: 500, textAlign: 'right' }}>{v}</span>
+              ].filter(([,v])=>v).map(([k,v])=>(
+                <div key={k as string} style={{ display:'flex', justifyContent:'space-between', padding:'.3rem 0', borderBottom:'1px solid var(--border)', fontSize:'.78rem' }}>
+                  <span style={{ fontFamily:'var(--mono)', fontSize:'.54rem', textTransform:'uppercase', color:'var(--muted)' }}>{k}</span>
+                  <span style={{ fontWeight:600, fontSize:'.8rem' }}>{v}</span>
                 </div>
               ))}
             </div>
           </div>
-        </aside>
+        </div>
       </div>
-
-      <style>{`
-        @media (max-width: 768px) {
-          .policy-detail-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
-    </div>
+      <Footer />
+    </>
   );
 }

@@ -1,4 +1,4 @@
-// Server component - no 'use client' - inlines raw <script> tag to prevent theme flash
+// Pure server component — no 'use client' — inlines script before paint to prevent flash
 export function ThemeScript() {
   return (
     <script

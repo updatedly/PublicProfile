@@ -1,177 +1,112 @@
 'use client';
-
 import { useState, useEffect } from 'react';
 import type { Comment } from '@/lib/types';
 import { addComment, upvoteComment } from '@/lib/actions';
 import { createClient } from '@/lib/supabase/client';
 
-interface CommentFormProps {
-  policyId: string;
-  initialComments: Comment[];
-}
+interface Props { policyId: string; initialComments: Comment[]; }
 
-export function CommentForm({ policyId, initialComments }: CommentFormProps) {
-  const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null);
-  const [userChecked, setUserChecked] = useState(false);
+export function CommentForm({ policyId, initialComments }: Props) {
+  const [user, setUser] = useState<{ id:string; email:string; name:string }|null>(null);
+  const [checked, setChecked] = useState(false);
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [upvoting, setUpvoting] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const supabase = createClient();
-      const { data: { user: u } } = await supabase.auth.getUser();
-      if (u) {
-        setUser({ id: u.id, email: u.email!, name: u.user_metadata?.full_name ?? u.email! });
-      }
-      setUserChecked(true);
+      const sb = createClient();
+      const { data: { user: u } } = await sb.auth.getUser();
+      if (u) setUser({ id: u.id, email: u.email!, name: u.user_metadata?.full_name ?? u.email! });
+      setChecked(true);
     })();
   }, []);
 
-  const handleSignIn = async () => {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.href },
-    });
+  const signIn = async () => {
+    const sb = createClient();
+    await sb.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: window.location.href } });
   };
 
-  const handleSubmit = async () => {
+  const submit = async () => {
     if (!user || !text.trim()) return;
-    setSaving(true);
-    setError('');
+    setSaving(true); setError('');
     try {
-      const newComment = await addComment({
-        policy_id: policyId,
-        user_id: user.id,
-        user_name: user.name,
-        user_email: user.email,
-        text: text.trim(),
-      });
-      setComments(prev => [newComment as Comment, ...prev]);
+      const c = await addComment({ policy_id: policyId, user_id: user.id, user_name: user.name, user_email: user.email, text: text.trim() });
+      setComments(prev => [c as Comment, ...prev]);
       setText('');
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to post comment.');
-    } finally {
-      setSaving(false);
-    }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed.'); }
+    finally { setSaving(false); }
   };
 
-  const handleUpvote = async (commentId: string) => {
-    if (!user || upvoting) return;
-    setUpvoting(commentId);
+  const upvote = async (id: string) => {
+    if (!user) return;
     try {
-      await upvoteComment(commentId, user.id);
-      setComments(prev => prev.map(c =>
-        c.id === commentId ? { ...c, likes: c.likes + 1, upvoted_by: [...(c.upvoted_by ?? []), user.id] } : c
-      ));
+      await upvoteComment(id, user.id);
+      setComments(prev => prev.map(c => c.id === id && !c.upvoted_by?.includes(user.id)
+        ? { ...c, likes: c.likes+1, upvoted_by: [...(c.upvoted_by??[]), user.id] } : c));
     } catch {}
-    finally { setUpvoting(null); }
   };
 
   return (
-    <section>
-      <div className="section-label">Discussion</div>
-
-      {/* Comment input */}
-      {!userChecked ? null : !user ? (
-        <div style={{
-          background: 'var(--bg-3)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          textAlign: 'center',
-          marginBottom: '1.25rem',
-        }}>
-          <p style={{ color: 'var(--text-2)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-            Sign in to join the discussion.
-          </p>
-          <button onClick={handleSignIn} className="btn btn-primary btn-sm">Sign in with Google</button>
+    <div>
+      {/* Input */}
+      {checked && !user ? (
+        <div style={{ padding:'.85rem 1rem', background:'var(--surface)', border:'1px solid var(--border)', marginBottom:'1.25rem', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'1rem', flexWrap:'wrap' }}>
+          <span style={{ fontSize:'.82rem', color:'var(--muted)', fontWeight:300 }}>Sign in to join the discussion.</span>
+          <button onClick={signIn} className="btn-primary btn-sm">Sign in with Google</button>
         </div>
-      ) : (
-        <div style={{
-          background: 'var(--bg-3)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          marginBottom: '1.25rem',
-        }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-3)', marginBottom: '0.5rem' }}>
-            Commenting as <strong style={{ color: 'var(--text)' }}>{user.name}</strong>
+      ) : user ? (
+        <div className="comment-form">
+          <div style={{ fontSize:'.72rem', fontFamily:'var(--mono)', color:'var(--muted2)', marginBottom:'.4rem' }}>
+            As <span style={{ color:'var(--gold)' }}>{user.name}</span>
           </div>
           <textarea
-            className="form-textarea"
+            className="comment-textarea"
             placeholder="Share your thoughts on this policy…"
             value={text}
             onChange={e => setText(e.target.value)}
             rows={3}
-            style={{ marginBottom: '0.625rem', minHeight: '80px' }}
           />
-          {error && <div className="alert alert-error" style={{ marginBottom: '0.5rem', fontSize: '0.8rem' }}>{error}</div>}
-          <button
-            onClick={handleSubmit}
-            disabled={saving || !text.trim()}
-            className="btn btn-primary btn-sm"
-          >
-            {saving ? 'Posting…' : 'Post Comment'}
-          </button>
+          {error && <div style={{ color:'#e74c3c', fontSize:'.75rem', marginBottom:'.4rem', fontFamily:'var(--mono)' }}>{error}</div>}
+          <div className="comment-row-bottom">
+            <button onClick={submit} disabled={saving || !text.trim()} className="btn-primary btn-sm">
+              {saving ? 'Posting…' : 'Post Comment'}
+            </button>
+          </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Comments list */}
+      {/* List */}
       {comments.length === 0 ? (
-        <p style={{ color: 'var(--text-3)', fontSize: '0.875rem', textAlign: 'center', padding: '1.5rem 0' }}>
-          No comments yet. Be the first to share your thoughts.
-        </p>
+        <div style={{ color:'var(--muted2)', fontFamily:'var(--mono)', fontSize:'.72rem', padding:'.75rem 0' }}>
+          No comments yet.
+        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {comments.map(comment => {
-            const hasUpvoted = user && comment.upvoted_by?.includes(user.id);
+        <div>
+          {comments.map(c => {
+            const alreadyUpvoted = user && c.upvoted_by?.includes(user.id);
             return (
-              <div
-                key={comment.id}
-                style={{
-                  background: 'var(--bg-3)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  padding: '0.875rem',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.25rem' }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text)' }}>{comment.user_name}</span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
-                    {new Date(comment.created_at).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
+              <div key={c.id} className="comment-item">
+                <div className="comment-meta">
+                  <span className="comment-author">{c.user_name}</span>
+                  <span className="comment-date">
+                    {new Date(c.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
                   </span>
                 </div>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: '0.625rem' }}>
-                  {comment.text}
-                </p>
+                <div className="comment-text">{c.text}</div>
                 <button
-                  onClick={() => handleUpvote(comment.id)}
-                  disabled={!!hasUpvoted || !user || upvoting === comment.id}
-                  style={{
-                    background: 'none',
-                    border: '1px solid var(--border)',
-                    borderRadius: '100px',
-                    padding: '0.2em 0.65em',
-                    fontSize: '0.78rem',
-                    color: hasUpvoted ? 'var(--accent)' : 'var(--text-3)',
-                    cursor: hasUpvoted || !user ? 'default' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    transition: 'all var(--transition)',
-                  }}
+                  onClick={() => upvote(c.id)}
+                  disabled={!!alreadyUpvoted || !user}
+                  style={{ marginTop:'.45rem', background:'none', border:'1px solid var(--border2)', borderRadius:'var(--radius)', padding:'.2em .55em', fontFamily:'var(--mono)', fontSize:'.58rem', cursor: alreadyUpvoted || !user ? 'default' : 'pointer', color: alreadyUpvoted ? 'var(--gold)' : 'var(--muted2)', transition:'all .2s' }}
                 >
-                  👍 {comment.likes}
+                  👍 {c.likes}
                 </button>
               </div>
             );
           })}
         </div>
       )}
-    </section>
+    </div>
   );
 }

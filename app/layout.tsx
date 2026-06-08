@@ -1,18 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Header } from '@/components/Header';
-import { Footer } from '@/components/Footer';
 import { ThemeScript } from '@/components/ThemeScript';
 
 export const metadata: Metadata = {
   title: 'Public Profile — Ghana Accountability Tracker',
-  description: 'Track government policies, public officials, and institutional accountability in Ghana.',
-  keywords: ['Ghana', 'accountability', 'government', 'policies', 'transparency'],
-  openGraph: {
-    title: 'Public Profile — Ghana Accountability Tracker',
-    description: 'Track government policies and public officials in Ghana.',
-    type: 'website',
-  },
+  description: 'Public Profile tracks Ghana government policies, bills, and decisions — rated, sourced, and open to public scrutiny.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,11 +15,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeScript />
       </head>
       <body>
-        <div className="page-wrapper">
-          <Header />
-          <main>{children}</main>
-          <Footer />
-        </div>
+        <Header />
+        {children}
       </body>
     </html>
   );
